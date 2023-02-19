@@ -1,0 +1,14 @@
+[tool.poetry]
+name = "puffin"
+version = "2.0.0"
+description = ""
+authors = ["Anya Helene Bagge <anya@ii.uib.no>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
