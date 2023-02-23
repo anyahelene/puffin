@@ -2,3 +2,7 @@ __pycache__
 *.db
 run
 secrets.py
+dist
+node_modules
+puffin/borb
+secrets

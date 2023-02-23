@@ -2,8 +2,8 @@
 <html>
 
 <head>
-    <title>INF226 Exam Scores</title>
-    <link rel="icon" href="favicon.png" type="image/png" />
+
+    <title><%= htmlWebpackPlugin.options.title %></title>
 
     <style>
         * {
@@ -265,6 +265,7 @@
 </head>
 
 <body>
+    <%= htmlWebpackPlugin.tags.bodyTags %>
     <div id="page">
         <fieldset id="controls">
             <legend>Debugger</legend>
@@ -285,128 +286,4 @@
         <div id="anchor"></div>
     </div>
 </body>
-<script>
-    let reqId = 0;
-    let csrf_token = null;
-    const resultElt = document.getElementById('resultElt');
-    const anchor = document.getElementById('anchor');
-    const idField = document.getElementById('id');
-    const dataField = document.getElementById('data');
-    const submitBtn = document.getElementById('submit');
-
-    async function updateToken() {
-        const res = await fetch("heartbeat", {method: 'GET'});
-        console.log(res);
-
-        if(res.ok) {
-            const result = await res.json();
-            console.log(result);
-            if(result.status === 'ok') {
-                csrf_token = result.csrf_token;
-                return csrf_token;
-            }
-        }
-
-        throw new Error('Failed to obtain CSRF token');
-    }
-    async function submit(method) {
-        const endpoint = idField.value;
-        const requestBody = dataField.value;
-        const tok = csrf_token || await updateToken();
-        req = {method, headers:{'X-CSRFToken':tok, 'Accept':'application/json'}}
-        if(method !== 'GET') {
-            req.body = requestBody
-            req.headers['Content-Type'] = 'application/json; charset=UTF-8'
-        }
-        const res = await fetch(endpoint, req);
-
-        if (res.ok) {
-            const result = await res.json();
-            console.log("JSON result:", result);
-            display_results(result);
-        } else {
-        }
-    };
-
-    function element(text = '', tag = 'div') {
-        const elt = document.createElement(tag);
-        if (typeof text === 'string' || typeof text === 'number')
-            elt.innerText = text;
-        else if (text)
-            elt.appendChild(text);
-        return elt;
-    }
-    function display_results(result) {
-        if(!Array.isArray(result) || result.length === 0) {
-            resultElt.textContent = JSON.stringify(result, null, 2);
-            return;
-        }
-        let currentRow = element(null, 'tr');
-        const thead = element(currentRow, 'thead'), tbody = element(null, 'tbody');
-        const nextRow = () => { currentRow = element(null, 'tr'); tbody.appendChild(currentRow); };
-        resultElt.replaceChildren(thead, tbody);
-        const cell = (text, tag = 'td') => {
-            const elt = element(text, tag);
-            currentRow.appendChild(elt);
-
-            return elt;
-        };
-        let columns = []
-        for (let key in result[0]) {
-            elt = cell(`${key}`, 'th');
-            elt.title = `${key}`;
-            columns.push(key)
-        }
-        thead.appendChild(currentRow);
-
-        currentRow = element(null, 'tr')
-        result.forEach(row => {
-            console.log(row)
-            nextRow();
-            for (let key of columns) {
-                console.log(key, row[key])
-                elt = cell(`${JSON.stringify(row[key])}`);
-            }
-        });
-        foot = element("+/– indicates if grade is close to the next higher/lower grade. "
-        +"Green/red bar colour for scores indicate top/bottom quartiles. "
-        +"Only valid candidate/grade combinations will show real data, all other data is fake (but fairly representative).",'td')
-        foot.colSpan = currentRow.childElementCount
-        resultElt.appendChild(element(element(foot, 'tr'), 'tfoot'));
-        if(resultElt.getBoundingClientRect().y < 0)
-            resultElt.scrollIntoView({ block: "start", inline: "nearest", behavior: "smooth" });
-    }
-    function log_request(q, res, result) {
-        document.querySelectorAll('details').forEach(elt => elt.open = false);
-        const id = reqId++;
-        const logEntry = document.createElement('details');
-        logEntry.open = true;
-        const head = document.createElement('summary');
-        logEntry.appendChild(head);
-        const msg = result.error || `${(result.rows || []).length} rows found`;
-        head.textContent = `[${id}]  (${res.status} ${res.statusText}) ${q} → ${head.textContent} ${result.status}: ${msg}`;
-        if (result.query_html) {
-            const query = document.createElement('pre');
-            query.innerHTML = result.query_html;
-            logEntry.appendChild(query);
-        }
-        const body = document.createElement('pre');
-        body.innerText = JSON.stringify(result, null, 4);
-        logEntry.appendChild(body);
-        output.appendChild(logEntry);
-        logEntry.scrollIntoView({ block: "start", inline: "nearest", behavior: "smooth" });
-    };
-
-    function enterPressed(ev) {
-        if (ev.key === 'Enter') {
-            submit('GET');
-        }
-    };
-    idField.addEventListener('keydown', enterPressed);
-    document.getElementById('get').addEventListener('click', e => submit('GET'));
-    document.getElementById('put').addEventListener('click', e => submit('PUT'));
-    document.getElementById('post').addEventListener('click', e => submit('POST'));
-    document.getElementById('patch').addEventListener('click', e => submit('PATCH'));
-</script>
-
 </html>

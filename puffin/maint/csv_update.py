@@ -5,46 +5,6 @@ from puffin.db.model import *
 from werkzeug.security import check_password_hash, generate_password_hash
 
 
-def update_from_uib(session, row, course):
-    """Create or update user and uib/mitt_uib accounts from Mitt UiB data."""
-    name = row['sortable_name']
-    (lastname, firstname) = [s.strip() for s in name.split(',', 1)]
-    # get or create UiB user (has login name as user name)
-    uib_user = get_or_define(session, Account, {'username': row['login_id'], 'provider_id': providers['uib']},
-                             {'ref_id': int(row['id']), 'email': row['email'], 'fullname': name})
-    # get or create Mitt UiB user (has Canvas id as user name)
-    # mitt_uib_user = get_or_define(session, Account, {'username': row['id'], 'provider_id': providers['mitt_uib']}, {
-    #                              'email': row['email'], 'fullname': name})
-    # create User object if necessary
-
-    if uib_user.user == None:
-        user = User(firstname=firstname, lastname=lastname)
-        uib_user.user = user
-    else:
-        user = uib_user.user
-    session.add_all([user, uib_user])
-    session.commit()
-    print(user)
-    # name changed?
-    if uib_user.fullname != name:
-        # session.add(user)
-        user.firstname = firstname
-        user.lastname = lastname
-        uib_user.fullname = name
-    # update data
-    user.email = uib_user.email = row['email']
-    uib_user.avatar_url = row['avatar_url']
-    if course != None:
-        role = roles.get(row['role'], row['role'])
-        enrollment = get_or_define(session, Enrollment, {
-                                   'course': course, 'user': user}, {'role': role})
-        session.add(enrollment)
-
-    if row['gituser'] and row['gitid']:
-        gitid = int(row['gitid'])
-        git_user = get_or_define(session, Account, {'username': row['gituser'],
-                                                    'provider_id': providers['git.app.uib.no']}, {'user_id': user.id, 'ref_id': gitid, 'fullname': name})
-        session.add(git_user)
 
 
 if __name__ == '__main__':

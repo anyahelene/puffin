@@ -4,6 +4,8 @@ import requests
 import csv
 import sys
 
+from puffin.app.errors import ErrorResponse
+
 class CanvasConnection:
 
     def __init__(self, base_url, token):
@@ -20,15 +22,19 @@ class CanvasConnection:
     def get_paginated(self, endpoint, params={}, headers={}):
         headers['Authorization'] = f'Bearer {self.token}'
         results = []
-        while url != None:
-            req = requests.get(f'{self.base_url}{endpoint}', params=params, headers=headers)
+        endpoint = f'{self.base_url}{endpoint}'
+        while endpoint != None:
+            req = requests.get(endpoint, params=params, headers=headers)
             if req.ok:
                 results = results + req.json()
                 if 'next' in req.links:
-                        url = req.links['next']['url']
+                        endpoint = req.links['next']['url']
                 else:
-                        url = None
+                        endpoint = None
                 params = None
+            else:
+                req.raise_for_status()
+                raise ErrorResponse('Request failed', endpoint, status_code=req.status_code)
         return results
 
 
@@ -38,13 +44,13 @@ class CanvasConnection:
     def get_users_raw(self, course):
         params = {'include[]' : ['email','avatar_url','enrollments'],
                 'per_page' : '200'}
-        return self.get_paginated(f'course/{course}/users', params)
+        return self.get_paginated(f'courses/{course}/users', params)
 
 
     def get_sections_raw(self, course):
         params = {'include[]' : ['students'],
                 'per_page' : '200'}
-        return self.get_paginated(f'course/{course}/sections', params)
+        return self.get_paginated(f'courses/{course}/sections', params)
 
 
     def get_users(self, course):

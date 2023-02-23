@@ -3,7 +3,7 @@ from sqlalchemy import MetaData, create_engine
 from sqlalchemy.orm import scoped_session, sessionmaker, DeclarativeBase, Query
 from puffin import settings
 
-engine = create_engine(settings.DB_URL, echo=settings.DEBUG, future=True)
+engine = create_engine(settings.DB_URL, echo=False, future=True)
 db_session = scoped_session(sessionmaker(autocommit=False,
                                          autoflush=False,
                                          bind=engine))
@@ -32,7 +32,7 @@ def init_db():
     # you will have to import them first before calling init_db()
     from . import model, auth_model
     for cls in model.logged_tables:
-        model.create_triggers(cls)
+        model.create_triggers(cls, db_session)
 
     #Base.metadata.create_all(engine)
     Base.query = db_session.query_property()
