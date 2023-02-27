@@ -1,16 +1,39 @@
+from datetime import datetime
+from flask import Flask, current_app
 from gitlab import Gitlab, GitlabGetError
 from gitlab.v4.objects import Project, User as GitlabUser, Group as GitlabGroup
 from sqlalchemy import select
 from puffin.db.database import db_session as db
-from puffin.db.model import providers, User as PuffinUser, Account, define_gitlab_account
+from puffin.db.model import LastSync, providers, User as PuffinUser, Account, define_gitlab_account
 import logging
+import threading
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
 class GitlabConnection:
-    def __init__(self, url, token):
-        self.gl = Gitlab(url=url, private_token=token)
+    def __init__(self, app_or_url, token=None):
+        if isinstance(app_or_url, Flask):
+            app = app_or_url
+            app.extensions['puffin_gitlab_connection'] = self
+            base_url = None
+        else:
+            app = current_app
+            base_url = app_or_url
+        if app:
+            base_url = base_url or app.config.get('GITLAB_BASE_URL')
+            token = token or app.config.get('GITLAB_SECRET_TOKEN')
+        self.base_url = base_url
+        self.token = token
+        self.thread_local = threading.local()
+        self.thread_local.gl = None
+
+
+    @property
+    def gl(self):
+        if  getattr(self.thread_local, 'gl', None) == None:
+            self.thread_local.gl = Gitlab(url=self.base_url, private_token=self.token)
+        return self.thread_local.gl
 
     
     def project_members(self, project: Project | GitlabGroup | str | int, indirect=False) -> list[PuffinUser]:
@@ -24,7 +47,7 @@ class GitlabConnection:
 
     def map_gitlab_user(self, user : GitlabUser) -> PuffinUser:
         puffin_user = db.execute(select(PuffinUser).where(Account.user_id == PuffinUser.id,
-            Account.provider_id == providers['git.app.uib.no'],
+            Account.provider_id == providers['gitlab'],
             Account.ref_id == user.get_id())).scalar_one_or_none()
         print("Trying to map gitlab user:", user.username, "→", puffin_user.lastname if puffin_user else None)
         return puffin_user
@@ -51,19 +74,19 @@ class GitlabConnection:
             raise ValueError(f"Not a project: {project}")
 
 
-    def find_gitlab_account(self, user:PuffinUser) -> Account:
+    def find_gitlab_account(self, user:PuffinUser, sync_time:datetime = None) -> Account:
         name = f'{user.lastname}, {user.firstname}'
         (first_firstname,*more_firstnames) = user.firstname.split()
-        acc = user.account(providers['git.app.uib.no']) 
+        acc = user.account(providers['gitlab']) 
+        gituser:GitlabUser = None
         if acc == None:
             username=user.email.replace('@uib.no','').replace('@student.uib.no','')
             users = self.gl.users.list(username = username)
             logger.debug('Searching with username=%s: %s', username, users)
-            gituser:GitlabUser = None
             if len(users) == 1:
                 gituser = users[0]
             else:
-                username = user.account(providers['uib']).username
+                username = user.account(providers['canvas']).username
                 logger.debug('Searching with username=%s: %s', username, users)
                 more_users = self.gl.users.list(username=username)
                 if len(more_users) == 1:
@@ -76,7 +99,7 @@ class GitlabConnection:
                         gituser = more_users[0]
 
             if gituser:
-                acc = define_gitlab_account(user, gituser.username, gituser.id, gituser.name, commit=True)
+                acc = define_gitlab_account(user, gituser.username, gituser.id, gituser.name, sync_time = sync_time)
                 logger.info("Defined gitlab account: %s", acc)
             elif len(users) == 0:
                 if 'uib.no' in user.email:
@@ -85,4 +108,17 @@ class GitlabConnection:
                     logger.warn("Missing GitLab user: %s", user)
             else:
                 logger.warn("Ambiguous GitLab user: %s: %s", user, users)
+        else:
+            gituser = self.gl.users.get(acc.external_id)
+            if gituser:
+                if gituser.username != acc.username:
+                    logger.error('GitLab user %d: expected username %s, was %s for user %s', acc.external_id, acc.username, gituser.username, user)
+                    acc.username = gituser.username
+                    db.add(acc)
+            else:
+                logger.error('GitLab user %d doesn\'t exist: account=%s, user=%s', acc.external_id, acc, user)
+                db.delete(acc)
+                acc = None
+            if sync_time and acc:
+                LastSync.set_sync(db, acc, sync_time)
         return acc

@@ -191,7 +191,7 @@ export default {
                 resourceQuery: { not: [/raw/] },
                 type: 'asset/resource',
                  generator: {
-                     filename: '[path][name].css',
+                     filename: 'css/[name].css',
                  },
                 exclude: /node_modules/,
                 use: [

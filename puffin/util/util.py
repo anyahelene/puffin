@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from typing import TypeVar
 
 
@@ -8,3 +9,6 @@ def intify(data : str|int) -> str|int:
         return data
     else:
         raise ValueError('Expected string or int')
+
+def now() -> datetime:
+    return datetime.now(timezone.utc)

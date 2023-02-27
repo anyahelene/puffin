@@ -1,4 +1,4 @@
-from flask import Blueprint, Flask
+from flask import Blueprint, Flask, current_app
 from flask_login import login_required, current_user
 from puffin.db.model import Account, Enrollment, User
 from puffin.db.database import db_session as db
@@ -31,32 +31,42 @@ def get_user_or_fail(user_id_or_name):
                             user_id_or_name, status_code=404)
     return user
 
-@bp.route('/', methods=['GET'])
+@bp.get('/')
 @login_required
 def users():
     # with Session() as db:
     if current_user.is_admin:
-        users = db.execute(select(User).order_by(
-            User.lastname)).scalars().all()
+        users = _users()
+        print(users)
         return [u.to_json() for u in users]
     else:
         return [current_user.to_json()]
 
+def _users():
+    return db.execute(select(User).order_by(User.lastname)).scalars().all()
 
-@bp.route('/<user_spec>/', methods=['GET'])
+@bp.get('/self/')
+@login_required
+def user_self():
+    user = current_user.to_json()
+    if not user.get('locale'):
+        user['locale'] =  current_app.config.get('DEFAULT_LOCALE')
+    return user
+
+@bp.get('/<user_spec>/')
 @login_required
 def user(user_spec):
     user = get_user_or_fail(user_spec)
     return user.to_json()
 
-@bp.route('/<user_spec>/courses', methods=['GET'])
+@bp.get('/<user_spec>/courses')
 @login_required
 def user_courses(user_spec):
     user = get_user_or_fail(user_spec)
     return [en.course.to_json() for en in user.enrollments]
 
 
-@bp.route('/<user_spec>/groups', methods=['GET'])
+@bp.get('/<user_spec>/groups')
 @login_required
 def user_groups(user_spec):
     user = get_user_or_fail(user_spec)

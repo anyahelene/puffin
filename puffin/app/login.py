@@ -31,11 +31,11 @@ def login():
     if form.validate_on_submit():
         username = form.username.data
         password = form.password.data
-        u = db_session.execute(select(User).where(Account.email==username, Account.user_id==User.id)).scalar_one_or_none()
+        u = db_session.execute(select(User).where(User.email==username)).scalar_one_or_none()
 
         print('found user:', u)
         if u and u.password and check_password_hash(u.password, password):
-            if not u.is_expired():
+            if not u.is_expired:
                 print('logged in successfully, redirecting to', url_for('index_html'))
                 #session.clear()
                 login_user(u)

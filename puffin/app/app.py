@@ -3,11 +3,13 @@ from flask import Flask, abort, render_template, request, send_file, send_from_d
 from flask_login import login_required, current_user
 from flask_wtf import CSRFProtect, FlaskForm
 from werkzeug.security import safe_join
-from puffin.db.database import init_db, db_session as db
 from sqlalchemy.exc import SQLAlchemyError, NoResultFound
 from sqlalchemy import select
 from .errors import ErrorResponse
 from puffin import settings
+from puffin.canvas.users import CanvasConnection
+from puffin.gitlab.users import GitlabConnection
+from puffin.db import database
 import os
 import logging
 logging.basicConfig()
@@ -21,13 +23,16 @@ APP_PATH = os.path.dirname(os.path.dirname(
 
 
 def create_app():
-    app = Flask(__name__,
+    app = Flask('puffin',
                 template_folder=os.path.join(APP_PATH, 'templates/'),
                 static_folder=os.path.join(APP_PATH, 'dist/webroot/'))
     app.secret_key = 'mY s3kritz'
     app.config.from_object('puffin.app.default_settings')
     app.config.from_pyfile(os.path.join(APP_PATH, 'secrets'))
+    print(f'Starting {app.name}... Paths: root={app.root_path}, instance={app.instance_path}, static={app.static_folder}, template={app.template_folder}')
     CSRFProtect(app)
+    CanvasConnection(app)
+    GitlabConnection(app)
     app.config.update(
 
         SQLALCHEMY_DATABASE_URI=settings.DB_URL
@@ -36,14 +41,25 @@ def create_app():
     login.init(app)
     view_users.init(app)
     view_courses.init(app)
+    database.init(app)
 
     return app
 
 
 app = create_app()
 
-init_db()
 print(app.config)
+
+@app.shell_context_processor
+def shell_setup():
+    from sqlalchemy import select, alias, and_, or_, column, join, literal, literal_column, all_, any_, label, outerjoin
+    from puffin.db import model, database
+    from puffin.db.model import User, Account, Course, Enrollment, Membership, Group, Provider, JoinModel, LogType, Id, CourseUser, UserAccount
+    from puffin.db.views import view
+    from importlib import reload
+    db = database.db_session
+
+    return locals().copy()
 
 class HeartbeatForm(FlaskForm):
 
@@ -90,10 +106,10 @@ def static_js(path:str):
 @app.teardown_appcontext
 def shutdown_session(exception=None):
     print("shutdown_session")
-    db.remove()
+    database.db_session.remove()
 
 
-#@app.errorhandler(ErrorResponse)
+@app.errorhandler(ErrorResponse)
 def handle_exception(e: ErrorResponse):
     """Return JSON for errors."""
     # start with the correct headers and status code from the error
@@ -102,6 +118,7 @@ def handle_exception(e: ErrorResponse):
     response.data = json.dumps(e.to_dict())
     response.status_code = e.status_code
     response.content_type = "application/json"
+    logger.error(f'{e.status_code} {response.data}')
     return response
 
 

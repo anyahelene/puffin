@@ -1,11 +1,27 @@
-import { MDRender, SubSystem, Borb, Buttons, Frames, Settings, History, Terminals } from '../borb';
+import {
+    MDRender,
+    SubSystem,
+    Borb,
+    Buttons,
+    Frames,
+    Settings,
+    Sheet,
+    History,
+    Terminals,
+} from '../borb';
+import { BorbPanelBuilder } from '../borb/Frames';
+
+import { TilingWM, TilingWindow } from '../borb/TilingWM';
+import { html } from 'uhtml';
 //import defaultConfig from './config.json';
 const defaultConfig = {};
+import { csrf_token, display_panel, request, to_table, updateToken } from './puffin';
+import { add_course, Courses, display_course, set_active_course, set_course_view } from './courses';
 
-const puffin : Record<string,object> = {}
+const puffin: Record<string, object> = {};
 puffin.SubSystem = SubSystem;
 puffin.Borb = Borb;
-window['puffin'] = puffin
+window['puffin'] = puffin;
 SubSystem.setup(puffin, {
     proxy: true,
     hotReload: !!import.meta.webpackHot,
@@ -16,113 +32,118 @@ SubSystem.waitFor(Settings).then((settings) => {
     settings.configs[4] = defaultConfig;
 });
 
+const layoutPrefs = {
+    frame1: {
+        width: 12,
+        height: 6,
+        iconified: false,
+        maximized: false,
+    },
+    frame2: {
+        width: 20,
+        height: 6,
+        iconified: false,
+        maximized: false,
+    },
+    frame3: {
+        width: 32,
+        height: 10,
+        iconified: false,
+        maximized: false,
+    },
+};
+const layoutSpec = {
+    dir: 'H',
+    items: [
+        {
+            size: 29,
+            dir: 'V',
+            max_container: true,
+            items: [
+                {
+                    size: 9,
+                    dir: 'H',
+                    items: [
+                        {
+                            size: 15,
+                            item: 'frame1',
+                        },
+                        {
+                            size: 14,
+                            item: 'frame2',
+                        },
+                    ],
+                },
+                {
+                    size: 7,
+                    item: 'frame3',
+                },
+            ],
+        },
+    ],
+};
+interface TilingWM {
+    initialize: (spec: object, prefs: object) => void;
+}
+puffin.TilingWM = TilingWM;
+puffin.TilingWindow = TilingWindow;
+console.log('Hello!!');
+const wm = new TilingWM('mid', 32, 16);
+puffin.wm = wm;
+window.addEventListener('DOMContentLoaded', (ev) => {
+    wm.initialize(layoutSpec, layoutPrefs);
+});
+puffin.add_course = add_course;
+puffin.courses = Courses;
+puffin.set_active_course = set_active_course;
+puffin.to_table = to_table;
+puffin.set_course_view = set_course_view;
+//SubSystem.waitFor(Frames.Frames).then((frames) => {
+puffin.display_panel = display_panel;
+//});
+puffin.display_course = display_course;
+console.log(display_course);
 let reqId = 0;
-let csrf_token = null;
 const resultElt = document.getElementById('resultElt');
 const anchor = document.getElementById('anchor');
 const idField = document.getElementById('id') as HTMLInputElement;
 const dataField = document.getElementById('data') as HTMLInputElement;
 const submitBtn = document.getElementById('submit');
 
-async function updateToken() {
-    const res = await fetch("heartbeat", {method: 'GET'});
-    console.log(res);
-
-    if(res.ok) {
-        const result = await res.json();
-        console.log(result);
-        if(result.status === 'ok') {
-            csrf_token = result.csrf_token;
-            return csrf_token;
-        }
-    }
-
-    throw new Error('Failed to obtain CSRF token');
-}
-async function submit(method) {
+async function submit(method: string) {
     const endpoint = idField.value;
-    const requestBody = dataField.value;
-    const tok = csrf_token || await updateToken();
-    const req : RequestInit = {method, headers:{'X-CSRFToken':tok, 'Accept':'application/json'}}
-    if(method !== 'GET') {
-        req.body = requestBody
-        req.headers['Content-Type'] = 'application/json; charset=UTF-8'
-    }
-    const res = await fetch(endpoint, req);
+    const requestBody = dataField.value ? JSON.parse(dataField.value) : undefined;
+    resultElt.replaceChildren(...to_table(await request(endpoint, method, requestBody)));
+}
 
-    if (res.ok) {
-        const result = await res.json();
-        console.log("JSON result:", result);
-        display_results(result);
-    } else {
-    }
+interface Group {
+    group_id: number;
+    group_slug: string;
+}
+
+const DATA = {
+    groups: [] as Group[],
 };
 
-function element(text : string | number | HTMLElement = '', tag = 'div') {
-    const elt = document.createElement(tag);
-    if (typeof text === 'string' || typeof text === 'number')
-        elt.innerText = `${text}`;
-    else if (text)
-        elt.appendChild(text);
-    return elt;
-}
-function display_results(result: any[]) {
-    if(!Array.isArray(result) || result.length === 0) {
-        resultElt.textContent = JSON.stringify(result, null, 2);
-        return;
-    }
-    let currentRow = element(null, 'tr');
-    const thead = element(currentRow, 'thead'), tbody = element(null, 'tbody');
-    const nextRow = () => { currentRow = element(null, 'tr'); tbody.appendChild(currentRow); };
-    resultElt.replaceChildren(thead, tbody);
-    const cell = (text: string | number | HTMLElement, tag = 'td') => {
-        const elt = element(text, tag);
-        currentRow.appendChild(elt);
-
-        return elt;
-    };
-    let columns = []
-    for (let key in result[0]) {
-        const elt = cell(`${key}`, 'th');
-        elt.title = `${key}`;
-        columns.push(key)
-    }
-    thead.appendChild(currentRow);
-
-    currentRow = element(null, 'tr')
-    result.forEach(row => {
-        console.log(row)
-        nextRow();
-        for (let key of columns) {
-            console.log(key, row[key])
-            const elt = cell(`${JSON.stringify(row[key])}`);
-        }
-    });
-    const foot = element("",'td') as HTMLTableCellElement
-    foot.colSpan = currentRow.childElementCount
-    resultElt.appendChild(element(element(foot, 'tr'), 'tfoot'));
-    if(resultElt.getBoundingClientRect().y < 0)
-        resultElt.scrollIntoView({ block: "start", inline: "nearest", behavior: "smooth" });
-}
-
-function enterPressed(ev:KeyboardEvent) {
+function enterPressed(ev: KeyboardEvent) {
     if (ev.key === 'Enter') {
         submit('GET');
     }
-};
+}
 idField.addEventListener('keydown', enterPressed);
-document.getElementById('get').addEventListener('click', e => submit('GET'));
-document.getElementById('put').addEventListener('click', e => submit('PUT'));
-document.getElementById('post').addEventListener('click', e => submit('POST'));
-document.getElementById('patch').addEventListener('click', e => submit('PATCH'));
+document.getElementById('get').addEventListener('click', (e) => submit('GET'));
+document.getElementById('put').addEventListener('click', (e) => submit('PUT'));
+document.getElementById('post').addEventListener('click', (e) => submit('POST'));
+document.getElementById('patch').addEventListener('click', (e) => submit('PATCH'));
 
-//import '../css/style.scss';
-import '../css/frames.scss';
-import '../css/buttons.scss';
-import '../css/common.scss';
-import '../css/markdown.scss';
-import '../css/terminal.scss';
-import '../css/editor.scss';
+import '../borb/css/frames.scss';
+import '../borb/css/buttons.scss';
+import '../borb/css/common.scss';
+import '../borb/css/markdown.scss';
+import '../borb/css/terminal.scss';
+import '../borb/css/editor.scss';
+import '../borb/css/sheet.scss';
+import '../css/style.scss';
 //import styles from '../css/common.scss';
 //console.log(styles)
 
@@ -131,14 +152,12 @@ if (import.meta.webpackHot) {
     //turtleduck.webpackHot = import.meta.webpackHot;
     import.meta.webpackHot.accept(
         [
-            '../css/style.scss',
-            '../css/frames.scss',
-            '../css/buttons.scss',
-            '../css/common.scss',
-            '../css/markdown.scss',
-            '../css/terminal.scss',
-            '../css/grid-display.scss',
-            '../css/editor.scss',
+            '../borb/css/frames.scss',
+            '../borb/css/buttons.scss',
+            '../borb/css/common.scss',
+            '../borb/css/markdown.scss',
+            '../borb/css/terminal.scss',
+            '../borb/css/editor.scss',
         ],
         function (outdated) {
             outdated.forEach((dep) => {
@@ -155,4 +174,3 @@ if (import.meta.webpackHot) {
     //		console.warn("frames", args);
     //	});
 }
-

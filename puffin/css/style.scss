@@ -1,0 +1,177 @@
+* {
+    box-sizing: border-box;
+    ;
+}
+
+body {
+    background-image: linear-gradient(-45deg, #4458 0%, #5548 100%);
+    background-attachment: fixed;
+    margin: 0;
+}
+
+#page {
+    //padding: .5rem;
+    height: 100vh;
+    width: 100vw;
+    display:flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+label {
+    justify-self: end;
+}
+
+#mid {
+    display: grid;
+    flex-grow:1;
+    flex-shrink:1;
+    overflow:auto;
+    padding:1rem .5rem;
+}
+
+h1 {
+    font-variant: small-caps;
+    font-weight: normal;
+}
+#controls {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    grid-template-rows: max-content 1fr max-content;
+    grid-gap: .5rem;
+    background: #f5f5f5;
+    box-shadow: 3px 3px 3px #3333;
+    position: relative;
+    flex-grow: 1;
+    flex-shrink: 1;
+    margin-bottom:.25rem;
+}
+#controls .buttons {
+    text-align: center;
+    padding:.25rem;
+}
+#controls input:invalid {
+    border-color: red
+}
+
+#controls button {
+    font-size: 1.4rem;
+    border: .25rem outset #cf3c3aaa;
+    border-radius: .5rem;
+    background-color: #cf3c3a11;
+    margin: .25rem
+}
+
+#controls textarea {
+    resize: vertical;
+}
+
+#controls button:hover,
+#controls button:active {
+    border-color: #cf3c3a;
+    background-color: #cf3c3a33;
+}
+
+#controls button:active {
+    border-style: inset;
+}
+
+#controls label {
+    font-weight: bold;
+    margin-right: .5rem;
+}
+
+.log {
+    background: #eee;
+    color: #333;
+    overflow: auto;
+    flex-grow: .25;
+    flex-shrink: 3;
+    font-family: monospace;
+
+    padding: .5rem h1 {
+        font-size: large;
+        margin: 0 0 .5rem;
+    }
+
+    summary {
+        font-weight: bold
+    }
+
+    pre {
+        border-bottom: 1px solid grey;
+        padding-bottom: .25rem;
+    }
+}
+
+
+meter {
+    width: 100%;
+    height: 1.5rem;
+    border-radius: .25rem;
+    overflow: clip;
+}
+
+meter::-webkit-meter-bar {
+    height: 1.25rem;
+    background-color: whitesmoke;
+    background-image: linear-gradient(#e6e6e6, #e6e6e6, #eeeeee 20%, #cccccc 45%, #cccccc 55%);
+    border-radius: .25rem;
+}
+
+meter::-webkit-meter-optimum-value {
+    background-image: linear-gradient(#ad7, #ad7, #cea 20%, #7a3 45%, #7a3 55%);
+}
+
+meter::-webkit-meter-suboptimum-value {
+    background-image: linear-gradient(#fe7, #fe7, #ffc 20%, #db3 45%, #db3 55%);
+}
+
+meter::-webkit-meter-even-less-good-value {
+    background-image: linear-gradient(#f77, #f77, #fcc 20%, #d44 45%, #d44 55%);
+}
+
+td img {
+    max-height: 1rem;
+}
+
+td[data-type=int], td[data-type=float],
+    th[data-type=int], th[data-type=float] {
+    text-align: right;
+}
+borb-frame>* {
+    width: 100%;
+    height: 100%;
+    background: #eed;
+    overflow: auto;
+}
+borb-sheet {
+tr {
+    vertical-align: middle;
+    border-bottom: 1px dotted #8888;
+}
+td {
+    border-left: 1px dotted #8888;
+}
+tbody tr:nth-child(even) {
+    background: #fff8ff
+}
+
+tbody tr:nth-child(odd) {
+    background: #f8ffff
+}
+
+tbody tr:not(:first-child):hover {
+    background: #ccffaa
+}
+
+tr.bold :nth-child(1),
+tr.bold :nth-child(2) {
+    font-weight: bold;
+}
+th,
+td {
+    padding: .125em;
+}
+
+}

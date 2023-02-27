@@ -3,287 +3,42 @@
 
 <head>
 
-    <title><%= htmlWebpackPlugin.options.title %></title>
-
-    <style>
-        * {
-            box-sizing: border-box;
-            ;
-        }
-
-        body {
-            background-image: linear-gradient(-45deg, #eef8 0%, #ffe8 100%);
-            background-attachment: fixed;
-            margin: 0;
-        }
-
-        #page {
-            display: flex;
-            flex-direction: column;
-            padding: .5rem;
-            min-height:100vh;
-        }
-
-        label {
-            justify-self: end;
-        }
-
-        h1, #controls legend {
-            font-variant: small-caps;
-            font-weight: normal;
-        }
-
-        #controls legend {
-            font-size: xx-large;
-            color: #8a2826;
-            text-shadow: 2px 2px 3px #3336;
-        }
-        #controls {
-            /* min-height: 20%; */
-            flex-shrink:2;
-            font-size: 1.2rem;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            grid-gap: .5rem;
-            max-width: 70rem;
-            border: .75rem ridge #cf3c3a;
-            margin: 1rem auto;
-            padding: 1rem;
-            background: #f5f5f5;
-            box-shadow: 3px 3px 3px #3333;
-            position:relative;
-        }
-
-        #controls::after {
-            content: "gradinator\0a v0.2 beta\0a 2022-12-17";
-            text-align: right;
-            position:absolute;
-            right:.25rem;
-            bottom:.25rem;
-            font-size:.7rem;
-            color: #8a2826;
-            white-space: pre;
-        }
-
-        #controls input:invalid {
-            border-color: red
-        }
-
-        #controls button {
-            font-size: 1.4rem;
-            border: .25rem outset #cf3c3aaa;
-            border-radius: .5rem;
-            background-color: #cf3c3a11;
-            margin-top: 2rem
-        }
-        #controls p, #controls label, #controls input {
-            font-size: 1.2rem;
-        }
-        #controls button:hover,
-        #controls button:active {
-            border-color: #cf3c3a;
-            background-color: #cf3c3a33;
-        }
-
-        #controls button:active {
-            border-style: inset;
-        }
-
-        #controls p {
-            grid-column: span 2;
-            margin-top:0;
-            font-style: italic
-        }
-
-        #controls label {
-            font-weight: bold;
-            margin-right: .5rem;
-        }
-
-        #submit {
-            grid-column: span 2;
-            max-width: 50%;
-            margin: .5rem auto;
-            grid-row: span 2;
-            justify-self: center;
-        }
-
-        #output {
-            width: 90%;
-            max-height: 50vh;
-            background: #eee;
-            border-top:1px solid #8888;
-            color: #333;
-            overflow: auto;
-            margin: .5rem auto;
-            flex-grow: .25;
-            flex-shrink: 3;
-            font-family: monospace;
-            padding: .5rem
-        }
-
-        #output h1 {
-            font-size: large;
-            margin: 0 0 .5rem;
-        }
-
-        #output summary {
-            font-weight: bold
-        }
-
-        #output pre {
-            border-bottom: 1px solid grey;
-            padding-bottom: .25rem;
-        }
-
-        #header {
-            display: flex;
-            flex-direction: row;
-            flex-wrap: wrap;
-        }
-
-        #header li {
-            display: block;
-            font-style: italic;
-            font-size: 1.2rem;
-            padding: .25rem;
-            margin: 0 1rem;
-        }
-
-        #results {
-            max-width: 120rem;
-            margin: .5rem auto;
-            flex-shrink: 1;
-            flex-grow:1
-        }
-        #results thead {
-            position:sticky;
-            top:0;
-            z-index:100;
-            background:#eee
-        }
-        #resultTable {
-            width: 100%;
-            text-align: left;
-            border-collapse: collapse;
-        }
-
-        tr {
-            vertical-align: middle;
-            border-bottom: 1px solid #8888
-        }
-
-        thead tr {
-            vertical-align: bottom;
-            position: sticky
-        }
-
-        tbody tr *:first-child {
-            text-align: right;
-            position: sticky
-        }
-
-        th,
-        td {
-            padding: .25rem .5rem;
-        }
-        
-        th:nth-child(n+2) {
-            min-width:7rem;
-            width:calc(100% / 11);
-
-        }
-        tbody tr:nth-child(even) {
-            background: #a862
-        }
-
-        tbody tr:nth-child(odd) {
-            background: #68a2
-        }
-
-        tbody tr:not(:first-child):hover {
-            background: #8a66
-        }
-
-        tr.bold :nth-child(1), tr.bold :nth-child(2) {
-            font-weight: bold;
-        }
-        tfoot td {
-            text-align: left;
-            font-style: italic;
-            font-size:.9rem;
-        }
-        meter {
-            width: 100%;
-            height: 1.5rem;
-            border-radius: .25rem;
-            overflow: clip;
-        }
-
-        meter::-webkit-meter-bar {
-            height: 1.25rem;
-            background-color: whitesmoke;
-            background-image: linear-gradient(#e6e6e6, #e6e6e6, #eeeeee 20%, #cccccc 45%, #cccccc 55%);
-            border-radius: .25rem;
-        }
-
-        meter::-webkit-meter-optimum-value {
-            background-image: linear-gradient(#ad7, #ad7, #cea 20%, #7a3 45%, #7a3 55%);
-        }
-
-        meter::-webkit-meter-suboptimum-value {
-            background-image: linear-gradient(#fe7, #fe7, #ffc 20%, #db3 45%, #db3 55%);
-        }
-
-        meter::-webkit-meter-even-less-good-value {
-            background-image: linear-gradient(#f77, #f77, #fcc 20%, #d44 45%, #d44 55%);
-        }
-
-        td[data-value] {
-            position: relative;
-        }
-        tr:hover td[data-value]::before {
-            color: #000
-        }
-        td[data-value]::before {
-            content: attr(data-value);
-            transform: translate(-50%, -50%);
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            font-family: monospace;
-            color: #0008;
-            z-index: 99
-        }
-        td[data-altvalue]::before {
-            content: attr(data-altvalue) !important;
-            width:1em;
-            text-align:left
-        }
-    </style>
-
+    <title>
+        <%= htmlWebpackPlugin.options.title %>
+    </title>
+    <link rel="stylesheet" href="css/style.css" />
+    <link rel="stylesheet" href="css/sheet.css" />
 </head>
 
 <body>
     <%= htmlWebpackPlugin.tags.bodyTags %>
-    <div id="page">
-        <fieldset id="controls">
-            <legend>Debugger</legend>
-            <label for="id">API endpoint:</label>
-            <input type="text" id="id" name="id" placeholder="/courses/" autofocus="true">
-            <label for="data">Data:</label>
-            <textarea id="data" placeholder="{}"></textarea>
-
-            <button type="button" id="get">GET</button>
-            <button type="button" id="put">PUT</button>
-            <button type="button" id="post">POST</button>
-            <button type="button" id="patch">PATCH</button>
-            </fieldset>
-            <div id="resultElt"></div>
-        <footer id="output">
-            <h1>Debug Log</h1>
-        </footer>
-        <div id="anchor"></div>
-    </div>
+        <div id="page">
+            <div id="mid">
+                <borb-frame id="frame1">
+                    <div id="controls" frame-title="Debugger">
+                        <label for="id">API endpoint:</label>
+                        <input type="text" id="id" name="id" placeholder="/courses/" autofocus="true">
+                        <label for="data">Data:</label>
+                        <textarea id="data" placeholder="{}" rows="1"></textarea>
+                        <div></div>
+                        <div class="buttons">
+                            <button type="button" id="get">GET</button>
+                            <button type="button" id="put">PUT</button>
+                            <button type="button" id="post">POST</button>
+                            <button type="button" id="patch">PATCH</button>
+                        </div>
+                    </div>
+                </borb-frame>
+                <borb-frame id="frame2">
+                </borb-frame>
+                <borb-frame id="frame3" style="height:100%">
+                    <borb-sheet frame-title="Results" id="resultElt" class="sheet"></borb-sheet>
+                    <div frame-title="Debug Log" id="output" class="log">
+                        <h1>Debug Log</h1>
+                    </div>
+                    <div id="anchor"></div>
+                </borb-frame>
+            </div>
 </body>
+
 </html>

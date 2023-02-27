@@ -1,10 +1,11 @@
 from logging.config import fileConfig
+import os
 
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 
 from alembic import context
-from puffin.db import database
+from puffin.db import database, model
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -26,6 +27,10 @@ target_metadata = database.Base.metadata
 # my_important_option = config.get_main_option("my_important_option")
 # ... etc.
 
+def generate_typescript() -> None:
+    filename = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'app', 'model.ts')
+    print(filename)
+    model.to_typeScript(filename)
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.
@@ -49,6 +54,7 @@ def run_migrations_offline() -> None:
 
     with context.begin_transaction():
         context.run_migrations()
+    generate_typescript()
 
 
 def run_migrations_online() -> None:
@@ -71,6 +77,7 @@ def run_migrations_online() -> None:
 
         with context.begin_transaction():
             context.run_migrations()
+    generate_typescript()
 
 
 if context.is_offline_mode():
