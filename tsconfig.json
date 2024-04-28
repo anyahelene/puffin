@@ -15,15 +15,17 @@
         "strictNullChecks": false,
         //  "explainFiles" : true,
         //  "listEmittedFiles":true,
+        // "traceResolution": true,
         "paths": {
-            "css/frames.css": ["./dist/webroot/styles/frames.css"] //, "borb":["./src/main/webroot/borb/borb.ts"], "borb/*":["./src/main/webroot/borb/*"]
+            "css/frames.css": ["./dist/webroot/styles/frames.css"], //, "borb":["./src/main/webroot/borb/borb.ts"], "borb/*":["./src/main/webroot/borb/*"]
+            //"puffin/qlang/qlang.ne":["puffin/qlang/qlang.ne.d.ts"]
         }
         //    "types": ["webpack/module"],
         // "paths": {"node/getopts":["node_modules/getopts/index.d.ts" ]}
         //   "allowJs": true
     },
     "include": ["./puffin/**/*.ts"], //, "../turtleduck/borb/src/**/*.ts", "puffin/app/index.mts"],
-    "exclude": ["node_modules"],
+    "exclude": ["node_modules", "./puffin/**/*.d.ts"],
     "ts-node": {
         "logError": false,
         "compilerOptions": { "module": "ES2020" }

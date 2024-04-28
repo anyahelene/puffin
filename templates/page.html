@@ -10,9 +10,33 @@
     <link rel="stylesheet" href="css/sheet.css" />
 </head>
 
+
 <body>
     <%= htmlWebpackPlugin.tags.bodyTags %>
+        {% with messages = get_flashed_messages(with_categories=True) %}
+        {% if messages %}
+        <ul class="flashes">
+            {% for category, message in messages %}
+            <li class="flash {{ category }}">{{ message }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+        {% endwith %}
+        {% block body %}{% endblock %}
         <div id="page">
+            <header>
+                <borb-command name="profile" data-bind="f14" data-icon="🙃" data-text="Profile"></borb-command>
+                <borb-command name="projects" data-bind="f15" data-icon="🚧" data-text="Projects"></borb-command>
+
+                <div id="page-home">
+                    <borb-button id="f14" data-shortcut="shift+ctrl+14" class="row1"></borb-button>
+                    <borb-button id="f15" data-shortcut="shift+ctrl+15" class="row1"></borb-button>
+
+                </div>
+                <div id="course-info"></div>
+                <div id="user-info"></div>
+            </header>
+            <p id="display"></p>
             <div id="mid">
                 <borb-frame id="frame1">
                     <div id="controls" frame-title="Debugger">

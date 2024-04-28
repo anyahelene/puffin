@@ -5,8 +5,8 @@ from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 
 from alembic import context
-from puffin.db import database, model
-
+from puffin.db import database, model_util
+database.init(None)
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
@@ -28,9 +28,9 @@ target_metadata = database.Base.metadata
 # ... etc.
 
 def generate_typescript() -> None:
-    filename = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'app', 'model.ts')
+    filename = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'app', 'model_gen.ts')
     print(filename)
-    model.to_typeScript(filename)
+    model_util.to_typeScript(filename)
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.

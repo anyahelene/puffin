@@ -10,17 +10,31 @@ import {
     Terminals,
 } from '../borb';
 import { BorbPanelBuilder } from '../borb/Frames';
+import nearley from 'nearley';
+import grammar from '../qlang/qlang.ne';
 
 import { TilingWM, TilingWindow } from '../borb/TilingWM';
-import { html } from 'uhtml';
+import { html, render } from 'uhtml';
 //import defaultConfig from './config.json';
 const defaultConfig = {};
-import { csrf_token, display_panel, request, to_table, updateToken } from './puffin';
-import { add_course, Courses, display_course, set_active_course, set_course_view } from './courses';
+import {puffin, csrf_token, display_panel, login_panel, request, to_table, updateToken, get_gitlab_group, get_gitlab_project, create_team_from_project_url } from './puffin';
+import { Course, SelfUser, tables } from './model';
+import { CourseView } from './courses';
+import { add_assignment_form, edit_assignment_form } from './assignments';
+import moo from 'moo';
 
-const puffin: Record<string, object> = {};
+puffin.tables = tables;
+puffin.Course = Course;
+puffin.CourseView = CourseView;
 puffin.SubSystem = SubSystem;
 puffin.Borb = Borb;
+puffin.add_assignment_form = add_assignment_form;
+puffin.edit_assignment_form = edit_assignment_form;
+puffin.get_gitlab_group = get_gitlab_group;
+puffin.get_gitlab_project = get_gitlab_project;
+puffin.create_team_from_project_url = create_team_from_project_url;
+puffin.login_panel = login_panel;
+
 window['puffin'] = puffin;
 SubSystem.setup(puffin, {
     proxy: true,
@@ -93,16 +107,16 @@ puffin.wm = wm;
 window.addEventListener('DOMContentLoaded', (ev) => {
     wm.initialize(layoutSpec, layoutPrefs);
 });
-puffin.add_course = add_course;
-puffin.courses = Courses;
-puffin.set_active_course = set_active_course;
+puffin.courses = CourseView;
 puffin.to_table = to_table;
-puffin.set_course_view = set_course_view;
 //SubSystem.waitFor(Frames.Frames).then((frames) => {
 puffin.display_panel = display_panel;
 //});
-puffin.display_course = display_course;
-console.log(display_course);
+puffin.nearley = nearley;
+puffin.grammar = grammar;
+puffin.parser  = new nearley.Parser(nearley.Grammar.fromCompiled(grammar));
+puffin.request = request;
+
 let reqId = 0;
 const resultElt = document.getElementById('resultElt');
 const anchor = document.getElementById('anchor');
@@ -113,6 +127,7 @@ const submitBtn = document.getElementById('submit');
 async function submit(method: string) {
     const endpoint = idField.value;
     const requestBody = dataField.value ? JSON.parse(dataField.value) : undefined;
+    console.log('submit', endpoint, requestBody);
     resultElt.replaceChildren(...to_table(await request(endpoint, method, requestBody)));
 }
 
@@ -136,6 +151,35 @@ document.getElementById('put').addEventListener('click', (e) => submit('PUT'));
 document.getElementById('post').addEventListener('click', (e) => submit('POST'));
 document.getElementById('patch').addEventListener('click', (e) => submit('PATCH'));
 
+SubSystem.waitFor('dom').then(() => {
+    if (window.location.search) {
+        const usp = new URLSearchParams(window.location.search);
+        if (usp.has('course')) {
+            Course.setActiveCourse(parseInt(usp.get('course'))).then(() => CourseView.set_course_view());
+        }
+    }
+
+    request('users/self').then(async (self:SelfUser) => {
+        puffin.self = self;
+        Course.current_user = self;
+        const user_info = document.getElementById('user-info');
+        self.on_update = () => {
+            render(user_info, html`
+            <span class="name" title=${self.course_user?.role || ""}>${self.firstname} ${self.lastname}</span>
+            <ul class="account-status">
+            <li data-account="canvas" data-account-short="C" data-account-name="Canvas" ?data-is-active=${!!self.canvas_account}></li>
+            <li data-account="gitlab" data-account-short="G" data-account-name="GitLab" ?data-is-active=${!!self.gitlab_account}></li>
+            <li data-account="discord" data-account-short="D" data-account-name="Discord" ?data-is-active=${!!self.discord_account}></li>
+            </ul>
+            ${self.is_admin ? html`<span class="is-admin" title="Logged in as administrator"><span>` : ""}
+            `);
+        }
+        await Course.updateCourses();
+        await Course.setActiveCourse(42576);
+        CourseView.set_course_view();
+    })
+
+});
 import '../borb/css/frames.scss';
 import '../borb/css/buttons.scss';
 import '../borb/css/common.scss';

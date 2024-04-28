@@ -53,8 +53,10 @@
         "jszip": "^3.7.1",
         "lodash-es": "^4.17.21",
         "magic-portal": "^1.0.0",
+        "moo": "^0.5.2",
         "mousetrap": "^1.6.5",
         "mousetrap-global-bind": "^1.1.0",
+        "nearley": "^2.20.1",
         "normalize.css": "^8.0.1",
         "path-browserify": "^1.0.1",
         "querystring-es3": "^0.2.1",
@@ -63,14 +65,17 @@
         "stacktrace-js": "^2.0.2",
         "style-mod": "^4.0.0",
         "uhtml": "^3.0.0",
-        "urijs": "^1.19.11"
+        "urijs": "^1.19.11",
+        "y18n": "^5.0.8"
     },
     "devDependencies": {
         "@lezer/generator": "^1.1.1",
         "@types/eslint": "^8.4.2",
         "@types/jest": "^28.1.1",
         "@types/lodash-es": "^4.17.6",
+        "@types/moo": "^0.5.5",
         "@types/mousetrap": "^1.6.9",
+        "@types/nearley": "^2.11.2",
         "@types/remarkable": "^2.0.3",
         "@types/sockjs-client": "^1.5.1",
         "@types/urijs": "^1.19.19",
@@ -85,6 +90,7 @@
         "jest": "^28.1.1",
         "markdown-loader": "^8.0.0",
         "mini-css-extract-plugin": "^2.7.2",
+        "nearley-loader": "^2.0.0",
         "prettier": "^2.7.1",
         "raw-loader": "^4.0.2",
         "remarkable": "^2.0.1",
@@ -95,9 +101,9 @@
         "ts-loader": "^9.3.0",
         "typescript": "^4.7.3",
         "url-loader": "^4.1.1",
-        "webpack": "^5.30.0",
+        "webpack": "^5.76.2",
         "webpack-cli": "^5.0.1",
-        "webpack-dev-server": "^4.9.2"
+        "webpack-dev-server": "^4.12.0"
     },
     "prettier": {
         "singleQuote": true,

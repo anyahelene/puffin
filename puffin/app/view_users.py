@@ -1,6 +1,6 @@
 from flask import Blueprint, Flask, current_app
 from flask_login import login_required, current_user
-from puffin.db.model import Account, Enrollment, User
+from puffin.db.model_tables import Account, Enrollment, User
 from puffin.db.database import db_session as db
 from sqlalchemy import select,and_
 from .errors import ErrorResponse
@@ -9,13 +9,13 @@ import logging
 logger = logging.getLogger(__name__)
 
 bp = Blueprint('users', __name__, url_prefix='/users')
-def init(app:Flask):
-    app.register_blueprint(bp)
+def init(app:Flask, parent:Blueprint):
+    (parent or app).register_blueprint(bp)
 
 def get_user(user_id_or_name):
     user_id_or_name = intify(user_id_or_name)
     if current_user.is_admin and isinstance(user_id_or_name, int):
-        return db.get(user_id_or_name)
+        return db.get(User, user_id_or_name)
     elif isinstance(user_id_or_name, int):
         where = User.id == user_id_or_name
     elif isinstance(user_id_or_name, str):
@@ -51,6 +51,8 @@ def user_self():
     user = current_user.to_json()
     if not user.get('locale'):
         user['locale'] =  current_app.config.get('DEFAULT_LOCALE')
+    for acc in current_user.accounts:
+        user[f'{acc.provider_name}_account'] = acc.to_json()
     return user
 
 @bp.get('/<user_spec>/')

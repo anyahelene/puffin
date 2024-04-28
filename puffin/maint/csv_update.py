@@ -1,34 +1,38 @@
 #! /usr/bin/python
+import csv
 from slugify import slugify
-from puffin.db.database import init_db, db_session
-from puffin.db.model import *
-from werkzeug.security import check_password_hash, generate_password_hash
+from sqlalchemy import select
+from puffin.db.database import init, db_session
+from puffin.db.model_tables import  Assignment, User, Account, Course
+from puffin.db.model_util import update_from_uib, get_or_define
+from puffin.app.app import app
+import re
 
-
-
+def url_to_project_path(url):
+    if url != None:
+        url = re.sub('^https://git.app.uib.no/', '', url)
+        url = re.sub('/-/.*$','',url)
+    return url
 
 if __name__ == '__main__':
-    init_db()
+    init(app)
 
-    inf112 = get_or_define(db_session, Course, {'id': 39903}, {
-        'name': 'INF112 23V', 'slug':slugify('INF112 23V')})
-    db_session.add(inf112)
-    inf222 = get_or_define(db_session, Course, {'id': 39786}, {
-                           'name': 'INF222 23V', 'slug':slugify('INF222 23V')})
-    db_session.add(inf222)
+    inf226, added = get_or_define(db_session, Course, {'external_id': 42576}, {
+        'name': 'INF226 23H', 'slug':slugify('INF226 23H')})
+    db_session.add(inf226)
     db_session.commit()
-    filename = '../canvas-users.csv'
-    filename = '../canvas-users_inf112_2023-01-19.csv'
-    filename = '/home/anya/inf222/test-runner/students.csv'
+    filename = '/home/anya/inf226/admin/students.csv'
     with open(filename, 'r') as csvfile:
         reader = csv.DictReader(csvfile)
         for row in reader:
-            update_from_uib(db_session, row, inf222)
+            update_from_uib(db_session, row, inf226)
             db_session.commit()
 
     user = db_session.execute(select(User).where(Account.user_id==User.id,Account.username=='Anya.Bagge')).scalar_one()
-    user.password = generate_password_hash('abc123')
+    print(user)
     db_session.commit()
+
+    asgn, added = get_or_define(db_session, Assignment, {'course_id':inf226.id})
     if False:
         course_id = 39903
         course = db_session.execute(select(Course).filter_by(

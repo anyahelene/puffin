@@ -1,14 +1,13 @@
 from datetime import datetime
 from flask import Flask, current_app
 from gitlab import Gitlab, GitlabGetError
-from gitlab.v4.objects import Project, User as GitlabUser, Group as GitlabGroup
-from sqlalchemy import select
-from puffin.db.database import db_session as db
-from puffin.db.model import LastSync, providers, User as PuffinUser, Account, define_gitlab_account
+from gitlab.v4.objects import Project, User as GitlabUser, Group as GitlabGroup, GroupMergeRequest, ProjectMergeRequest
+import sqlalchemy as sa
+from puffin.db.model_tables import LastSync,  User as PuffinUser, Account
+from puffin.db.model_util import define_gitlab_account
 import logging
 import threading
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 
 
 class GitlabConnection:
@@ -36,19 +35,19 @@ class GitlabConnection:
         return self.thread_local.gl
 
     
-    def project_members(self, project: Project | GitlabGroup | str | int, indirect=False) -> list[PuffinUser]:
+    def project_members(self, session:sa.orm.Session, project: Project | GitlabGroup | str | int, indirect=True) -> list[PuffinUser]:
         p = self.get_project_or_group(project)
         if indirect:
             members = p.members_all.list(iterator=True)
         else:
             members = p.members.list(iterator=True)
 
-        return [self.map_gitlab_user(u) for u in members]
+        return [self.map_gitlab_user(session, u) for u in members]
 
-    def map_gitlab_user(self, user : GitlabUser) -> PuffinUser:
-        puffin_user = db.execute(select(PuffinUser).where(Account.user_id == PuffinUser.id,
-            Account.provider_id == providers['gitlab'],
-            Account.ref_id == user.get_id())).scalar_one_or_none()
+    def map_gitlab_user(self, session:sa.orm.Session, user : GitlabUser) -> PuffinUser:
+        puffin_user = session.execute(sa.select(PuffinUser).where(Account.user_id == PuffinUser.id,
+            Account.provider_name == 'gitlab',
+            Account.external_id == user.get_id())).scalar_one_or_none()
         print("Trying to map gitlab user:", user.username, "→", puffin_user.lastname if puffin_user else None)
         return puffin_user
 
@@ -74,19 +73,26 @@ class GitlabConnection:
             raise ValueError(f"Not a project: {project}")
 
 
-    def find_gitlab_account(self, user:PuffinUser, sync_time:datetime = None) -> Account:
+    def get_user(self, user_id:int) -> dict:
+        try:
+            user = self.gl.users.get(user_id)
+            return user.asdict()
+        except:
+            return None
+    
+    def find_gitlab_account(self, session:sa.orm.Session, user:PuffinUser, verify=False, sync_time:datetime = None, gitusername:str = None) -> Account:
         name = f'{user.lastname}, {user.firstname}'
         (first_firstname,*more_firstnames) = user.firstname.split()
-        acc = user.account(providers['gitlab']) 
+        acc = user.account('gitlab') 
         gituser:GitlabUser = None
         if acc == None:
-            username=user.email.replace('@uib.no','').replace('@student.uib.no','')
+            username=gitusername or user.email.replace('@uib.no','').replace('@student.uib.no','')
             users = self.gl.users.list(username = username)
             logger.debug('Searching with username=%s: %s', username, users)
             if len(users) == 1:
                 gituser = users[0]
             else:
-                username = user.account(providers['canvas']).username
+                username = user.account('canvas').username
                 logger.debug('Searching with username=%s: %s', username, users)
                 more_users = self.gl.users.list(username=username)
                 if len(more_users) == 1:
@@ -99,7 +105,7 @@ class GitlabConnection:
                         gituser = more_users[0]
 
             if gituser:
-                acc = define_gitlab_account(user, gituser.username, gituser.id, gituser.name, sync_time = sync_time)
+                acc = define_gitlab_account(session, user, gituser.username, gituser.id, gituser.name, sync_time = sync_time)
                 logger.info("Defined gitlab account: %s", acc)
             elif len(users) == 0:
                 if 'uib.no' in user.email:
@@ -108,17 +114,20 @@ class GitlabConnection:
                     logger.warn("Missing GitLab user: %s", user)
             else:
                 logger.warn("Ambiguous GitLab user: %s: %s", user, users)
-        else:
+        elif verify:
             gituser = self.gl.users.get(acc.external_id)
             if gituser:
                 if gituser.username != acc.username:
                     logger.error('GitLab user %d: expected username %s, was %s for user %s', acc.external_id, acc.username, gituser.username, user)
                     acc.username = gituser.username
-                    db.add(acc)
+                    session.add(acc)
             else:
                 logger.error('GitLab user %d doesn\'t exist: account=%s, user=%s', acc.external_id, acc, user)
-                db.delete(acc)
+                session.delete(acc)
                 acc = None
             if sync_time and acc:
-                LastSync.set_sync(db, acc, sync_time)
+                LastSync.set_sync(session, acc, sync_time)
         return acc
+    
+    def group_mergerequest_to_project_mergerequest(self, gmreq : GroupMergeRequest) -> ProjectMergeRequest:
+        return self.gl.projects.get(gmreq.project_id).mergerequests.get(gmreq.iid)

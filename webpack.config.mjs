@@ -22,7 +22,7 @@ export default {
         new FaviconsWebpackPlugin('../static/favicon.png'),
         new HtmlWebpackPlugin({
             title: 'Debugger',
-            //filename: 'test.html',
+            filename: 'index.html',
             template: '../templates/page.html',
         }),
     ],
@@ -76,6 +76,9 @@ export default {
         historyApiFallback: {
             rewrites: [{ from: /^\/~/, to: '/index.html' }],
             verbose: true,
+        },
+        devMiddleware: {
+            writeToDisk: true,
         },
         // (use symlink) watchFiles: ['../borb/**/*.ts', '../borb/**/*.js']
     },
@@ -153,12 +156,12 @@ export default {
                 },
                 use: [
                     process.env.NODE_ENV !== 'production'
-                    // embeds CSS-as-JS in a style element
-                       ? { loader: "style-loader", options: { injectType: "styleTag" } }//'style-loader'
-                       // turns the JS code back into CSS for file output
-                       : MiniCssExtractPlugin.loader,
-                       // turns CSS code into JS (to be inserted at import site),
-                        'css-loader',
+                        ? // embeds CSS-as-JS in a style element
+                          { loader: 'style-loader', options: { injectType: 'styleTag' } } //'style-loader'
+                        : // turns the JS code back into CSS for file output
+                          MiniCssExtractPlugin.loader,
+                    // turns CSS code into JS (to be inserted at import site),
+                    'css-loader',
                 ],
             },
             {
@@ -166,7 +169,11 @@ export default {
                 type: 'asset/source',
                 //use: [{ loader: 'raw-loader' }],
             },
-      /*      {
+            {
+                test: /\.ne$/,
+                use: ['nearley-loader'],
+            },
+            /*      {
                 test: /\.s[ac]ss$/i,
                 resourceQuery: { not: [/raw/] },
                 //type: 'asset/resource',
@@ -190,15 +197,16 @@ export default {
                 test: /\.s[ac]ss$/i,
                 resourceQuery: { not: [/raw/] },
                 type: 'asset/resource',
-                 generator: {
-                     filename: 'css/[name].css',
-                 },
+                generator: {
+                    filename: 'css/[name].css',
+                },
                 exclude: /node_modules/,
                 use: [
                     // turns SCSS code into CSS
-                    'sass-loader'
+                    'sass-loader',
                 ],
-            },            {
+            },
+            {
                 test: /\.(png|jpg|gif|svg|eot|ttf|woff|woff2)$/,
                 type: 'asset',
                 /*                options: {

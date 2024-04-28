@@ -9,7 +9,9 @@ from sqlalchemy.orm import scoped_session, sessionmaker, DeclarativeBase, Query,
 from puffin import settings
 from werkzeug.security import generate_password_hash
 
-engine = create_engine(settings.DB_URL, echo=True, future=True)
+from puffin.util.util import DateEncoder
+
+engine = create_engine(settings.DB_URL, echo=False, future=True)
 db_session = scoped_session(sessionmaker(autocommit=False,
                                          autoflush=False,
                                          bind=engine))
@@ -39,7 +41,7 @@ class PreBase():
         return result
 
     def __repr__(self):
-        return json.dumps(self.to_json())
+        return json.dumps(self.to_json(), cls=DateEncoder)
 
 class Base(PreBase, DeclarativeBase):
     metadata = _meta
@@ -50,33 +52,19 @@ def init(app:Flask):
     # import all modules here that might define models so that
     # they will be registered properly on the metadata.  Otherwise
     # you will have to import them first before calling init_db()
-    from . import model, auth_model
-    for cls in model.logged_tables:
-        model.create_triggers(cls, db_session)
+    from . import auth_model, model_tables, model_views, model_util
+    for cls in model_tables.logged_tables:
+        model_util.create_triggers(cls, db_session)
 
     _viewmeta.drop_all(engine)
     _viewmeta.create_all(engine)
     if app and app.config['PUFFIN_SUPER_USER'] and app.config['PUFFIN_SUPER_PASSWORD']:
-        super_user, created = model.get_or_define(db_session, model.User, {'id':0,'key':'internal#root'},
+        super_user, created = model_util.get_or_define(db_session, model_tables.User, {'id':0,'key':'internal#root'},
             {'firstname':'Dr.','lastname':'Superpuff','is_admin':True,'email':app.config['PUFFIN_SUPER_USER']})
         if created:
             super_user.password = generate_password_hash(app.config['PUFFIN_SUPER_PASSWORD'])
+        db_session.commit()
 
     #Base.metadata.create_all(engine)
     Base.query = db_session.query_property()
-    model.setup_providers()
 
-def rename_columns(name, source):
-    cols = []
-    info = []
-    for col in source.columns:
-        viewspecs = col.info.get('view', {})
-        spec = viewspecs.get(name, True)
-        if type(spec) == str:
-            cols.append(col.label(spec))
-            info.append(col.info)
-            print('col',cols[-1])
-        elif spec and not col.info.get('secret', False):
-            cols.append(col)
-            info.append(col.info)
-    return select(*cols).select_from(source), info
