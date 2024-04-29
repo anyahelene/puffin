@@ -175,7 +175,7 @@ SubSystem.waitFor('dom').then(() => {
             `);
         }
         await Course.updateCourses();
-        await Course.setActiveCourse(42576);
+        await Course.setActiveCourse(45714);
         CourseView.set_course_view();
     })
 

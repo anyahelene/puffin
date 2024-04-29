@@ -14,6 +14,8 @@ import slugify from 'slugify';
 import { form_field, form_select, GITLAB_PATH_RE, GITLAB_PREFIX } from './forms';
 
 class _courses {
+    _course_selector: HTMLSelectElement;
+
     async sync(
         course_id: number,
         {
@@ -137,6 +139,28 @@ class _courses {
                 [data.ref],
             );
         };
+        const sync_all = (ev: MouseEvent) => {
+            const target = ev.target as HTMLButtonElement;
+            const feedback = (s: string) => {
+                if (s) {
+                    target.innerText = s;
+                    target.disabled = false;
+                    target.classList.add('running');
+                }
+            };
+            ev.preventDefault();
+            CourseView.sync(course.external_id, { feedback })
+                .then(() => {
+                    target.innerText = target.dataset.text;
+                    target.disabled = false;
+                    target.classList.remove('running');
+                })
+                .catch((reason) => {
+                    target.innerText = `Sync failed: ${reason}`;
+                    target.disabled = false;
+                    target.classList.remove('running');
+                });
+        };
         panel.classList.add('form');
         const redraw = () =>
             render(
@@ -191,13 +215,17 @@ class _courses {
                         <button type="button" onclick=${reset} ?disabled=${!editable}
                             >🏫 Reset to Canvas defaults</button
                         > </div
-                    ><div class="form-control">
+                    >
+                    <div class="form-control">
                         <button type="button" onclick=${editable ? save : edit}
                             >${editable
                                 ? '💾 Save Course Settings'
                                 : '🖊️ Edit Course Settings'}</button
                         > </div
-                    ><div class="log">
+                    >
+                    <div class="form-control">
+                    <button type="button" data-text="Sync course data" onclick=${sync_all}>Sync course data</button></div>
+                    <div class="log">
                         ${course._log.map(
                             (entry) => html`<li class=${entry[0]}>${entry[1]}</li>`,
                         ) || ''}</div
@@ -209,36 +237,13 @@ class _courses {
     display_course(course: Course, select = true) {
         const panel = this.get_course_panel(course, select);
         console.log(panel, this);
-        const sync_all = (ev: MouseEvent) => {
-            const target = ev.target as HTMLButtonElement;
-            const feedback = (s: string) => {
-                if (s) {
-                    target.innerText = s;
-                    target.disabled = true;
-                    target.classList.add('running');
-                }
-            };
-            ev.preventDefault();
-            CourseView.sync(course.external_id, { feedback })
-                .then(() => {
-                    target.innerText = target.dataset.text;
-                    target.disabled = false;
-                    target.classList.remove('running');
-                })
-                .catch((reason) => {
-                    target.innerText = `Sync failed: ${reason}`;
-                    target.disabled = false;
-                    target.classList.remove('running');
-                });
-        };
+
         render(
             panel,
             html`
                 <h1>${course.name}</h1>
                 <div class="buttons">
-                    <button type="button" data-text="Sync course data" onclick=${sync_all}
-                        >Sync course data</button
-                    >
+
                 </div>
             `,
         );
@@ -291,10 +296,10 @@ class _courses {
     update_course_list() {
         const elt = document.getElementById('course-info');
         const obj = { course: Course.current?.name };
-        const change_course = (ev: MouseEvent, elt: HTMLInputElement) => {
+        const change_course = async (ev: MouseEvent, elt: HTMLSelectElement) => {
             if (elt.value) {
                 const course = Course.courses[parseInt(elt.value)];
-                if (course) course.setActive();
+                if (course) await course.setActive(true);
             }
         };
 
@@ -305,10 +310,16 @@ class _courses {
                 obj,
                 name: 'Course',
                 field: 'course',
-                default: Course.current?.name || 0,
+                onchange: change_course,
+                output: (e:HTMLSelectElement) => {this._course_selector = e},
+                default: Course.current?.external_id || 0,
                 alternatives: Course.courses.map((c) => [c.external_id, c.name]),
             }),
         );
+    }
+    on_course_change(course: Course) {
+        if(this._course_selector)
+            this._course_selector.value = `${course.external_id}`;
     }
 }
 export const CourseView = new _courses();

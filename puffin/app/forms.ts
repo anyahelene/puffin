@@ -86,7 +86,7 @@ export function form_select(data: Record<string, any>) {
         } else {
             value = text = alt?.toString();
         }
-        return html`<option .selected=${(typeof data.default === 'number' && i === data.default) || alt === data.default} value="${value}">${text}</option>`
+        return html`<option .selected=${data.default === value} value="${value}">${text}</option>`
     }
     if (data.editable)
         return html`<div class="form-field">

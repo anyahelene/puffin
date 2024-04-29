@@ -105,7 +105,7 @@ def new_course(course_spec):
         if not form.canvas_id.validate(form):
             raise ErrorResponse('Bad request', status_code=400)
         if current_user.is_admin:
-            changes = changes + _create_course(int(form.canvas_id.data))
+            changes = changes + _create_course(int(course_spec))
             course = get_course(course_spec)
 
     if course:

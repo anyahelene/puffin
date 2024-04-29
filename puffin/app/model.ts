@@ -181,18 +181,19 @@ export class Course extends _Course {
             const data = await request(`courses/${course_id}`);
             Course.courses[course_id] = course = new Course(data);
             course._original = data;
-            await course.updateUsers();
-            await course.updateGroups();
-            await course.updateMemberships();
-        } else if (update) await course.updateCourse();
-        return course.setActive();
+        }
+        return await course.setActive(update);
     }
-    setActive(): Course {
+    async setActive(update = true): Promise<Course> {
         Course.current = this;
         Course.current_user.course_user = this.currentUser();
         Course.current_user?.on_update();
+        if(update)
+            await this.updateCourse();
         CourseView.update_course_list();
-        return Course.current;
+        CourseView.refresh(true, false);
+
+        return Promise.resolve(Course.current);
     }
     currentUser(): User {
         return this.usersById[Course.current_user.id];
