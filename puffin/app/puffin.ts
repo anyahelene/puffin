@@ -55,6 +55,7 @@ export async function request(
     method: string = 'GET',
     params: Record<string, object | boolean | number | string> = undefined,
     use_url_params = false,
+    allow_error = false
 ) {
     const has_token = !!csrf_token;
     const tok = csrf_token || (await updateToken());
@@ -84,7 +85,7 @@ export async function request(
         if (true) {
             const result = await res.json();
             log_request(res, JSON.stringify(result, null, 2));
-            if (result.status === 'error') {
+            if (result.status === 'error' && !allow_error) {
                 console.error('Request failed', result, '\nrequest:', req, '\nresponse:', res);
                 throw new RequestError(res, result.message || 'Unknown error');
             }

@@ -49,6 +49,32 @@ def get_course_or_fail(course_id_or_slug):
                             course_id_or_slug, status_code=404)
     return course
 
+def get_group(course, group_id_or_slug):
+    group_id_or_slug = intify(group_id_or_slug)
+    if isinstance(group_id_or_slug, int):
+        where = Group.id == group_id_or_slug
+    elif isinstance(group_id_or_slug, str):
+        where = Group.slug == group_id_or_slug
+
+    if is_privileged(current_user, course):
+        return db.execute(select(Group).where(where)).scalar_one_or_none()
+    else:
+        return db.execute(select(Group).where(where, Membership.group_id == Group.id, Membership.user == current_user)).scalar_one_or_none()
+
+def get_group_or_fail(course, group_id_or_slug):
+    group = get_group(course, group_id_or_slug)
+    if group == None:
+        raise ErrorResponse('No such accessible group', group_id_or_slug, status_code=404)
+    return group
+
+def is_privileged(user, course):
+    if user.is_admin:
+        return True
+    en = current_user.enrollment(course)
+    if not en:
+        return False
+    return en.role in ['admin', 'ta', 'teacher']
+
 
 @bp.get('/')
 @login_required
@@ -138,10 +164,9 @@ def new_course(course_spec):
 @bp.post('/<course_spec>/sync')
 @login_required
 def course_sync(course_spec):
-    course = get_course(course_spec)
-    en = current_user.enrollment(course)
-    if current_user.is_admin or en.role in ['admin', 'ta', 'teacher']:
-        return _sync_course(get_course_or_fail(course_spec))
+    course = get_course_or_fail(course_spec)
+    if is_privileged(current_user, course):
+        return _sync_course(course)
     else:
         raise ErrorResponse('Access denied', status_code=403)
 
@@ -199,6 +224,8 @@ def _sync_course(course: Course):
 @login_required
 def course_users(course_spec):
     course = get_course_or_fail(course_spec)
+    if not is_privileged(current_user, course):
+        raise ErrorResponse('Access denied', status_code=403)
 
     result = []
     if request.args.get('accounts', False) or request.form.get('accounts', False):
@@ -243,6 +270,10 @@ def course_user(course_spec, user_id):
         user_id = int(user_id)
     elif user_id == 'self':
         user_id = current_user.id
+
+    if not is_privileged(current_user, course) and user_id != current_user.id:
+        raise ErrorResponse('Access denied', status_code=403)
+
     if type(user_id) == int:
         u = db.execute(select(User).join(User.enrollments).filter_by(
             course=course, user_id=user_id).order_by(User.lastname)).scalar_one()
@@ -326,15 +357,8 @@ def create_course_group(course_spec, group_id=None):
 @login_required
 def course_group(course_spec, group_spec):
     course = get_course_or_fail(course_spec)
-    group_spec = intify(group_spec)
-    if isinstance(group_spec, int):
-        group = db.execute(select(Group).where(
-            Group.course_id == course.id, Group.id == group_spec)).scalar_one_or_none()
-    else:
-        group = db.execute(select(Group).where(
-            Group.course_id == course.id, Group.slug == group_spec)).scalar_one_or_none()
-    if group == None:
-        raise ErrorResponse('No such group', group_spec, status_code=404)
+    group = get_group_or_fail(course, group_spec)
+
     return group.to_json()
 
 
@@ -343,17 +367,8 @@ def course_group(course_spec, group_spec):
 def course_group_users(course_spec, group_spec):
     result = []
     course = get_course_or_fail(course_spec)
-    group_spec = intify(group_spec)
-    if isinstance(group_spec, int):
-        group = db.execute(select(Group).where(
-            Group.course_id == course.id, Group.id == group_spec)).scalar_one_or_none()
-    else:
-        group = db.execute(select(Group).where(
-            Group.course_id == course.id, Group.slug == group_spec)).scalar_one_or_none()
-    if group == None:
-        raise ErrorResponse('Not such group', group_spec, status_code=404)
+    group = get_group_or_fail(course, group_spec)
 
-    print(request.args.get('details', 'false'))
     if request.args.get('details', 'false') == 'true':
         result = []
         for m in group.memberships:
@@ -370,18 +385,15 @@ def course_group_users(course_spec, group_spec):
 def course_groups_sync_one(course_spec, group_spec):
     log = []
     course = get_course_or_fail(course_spec)
+    group = get_group_or_fail(course, group_spec)
     token = request.form.get('token')
-    group_spec = intify(group_spec)
 
-    en = current_user.enrollment(course)
-    print(course, group_spec, en)
-    if current_user.is_admin or en.role in ['admin', 'ta', 'teacher']:
+
+    if is_privileged(current_user, course):
         sync_time = now()
         lastlog = db.execute(select(AuditLog).order_by(
             AuditLog.id.desc())).scalar()
-        group = db.execute(select(Group).where(Group.course_id == course.id, or_(
-            Group.id == group_spec, Group.slug == group_spec))).scalar_one()
-        print('sync group:', group)
+
         if not group.join_source:
             raise ErrorResponse('no join source configured',
                                 group, status_code=200)
@@ -426,8 +438,7 @@ def course_groups_sync(course_spec):
     changes = []
     course = get_course_or_fail(course_spec)
 
-    en = current_user.enrollment(course)
-    if current_user.is_admin or en.role in ['admin', 'ta', 'teacher']:
+    if is_privileged(current_user, course):
         sync_time = now()
         cc: CanvasConnection = current_app.extensions['puffin_canvas_connection']
         sections = cc.get_sections_raw(course.external_id)

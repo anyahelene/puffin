@@ -50,7 +50,8 @@ def get_gitlab_project(path):
             else:
                 raise ErrorResponse('Access denied', status_code=403)
         except GitlabGetError as e:
-                raise ErrorResponse('Not found', status_code=404)
+            raise ErrorResponse('Not found', status_code=404)
+
 @bp.get('/gitlab_group/<path:path>')
 @login_required
 def get_gitlab_group(path):

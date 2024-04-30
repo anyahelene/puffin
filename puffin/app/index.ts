@@ -151,6 +151,7 @@ document.getElementById('put').addEventListener('click', (e) => submit('PUT'));
 document.getElementById('post').addEventListener('click', (e) => submit('POST'));
 document.getElementById('patch').addEventListener('click', (e) => submit('PATCH'));
 
+
 SubSystem.waitFor('dom').then(() => {
     if (window.location.search) {
         const usp = new URLSearchParams(window.location.search);
@@ -159,7 +160,12 @@ SubSystem.waitFor('dom').then(() => {
         }
     }
 
-    request('users/self').then(async (self:SelfUser) => {
+    request('users/self', "GET", undefined, false, true).then(async (self:SelfUser) => {
+        if(self?.login_required) {
+            const path = window.location.pathname.replace(/[^/]*$/, '');
+            window.location.replace(`${path}login/gitlab?next=${window.location.pathname}`);
+            return;
+        }
         puffin.self = self;
         Course.current_user = self;
         const user_info = document.getElementById('user-info');
@@ -175,7 +181,11 @@ SubSystem.waitFor('dom').then(() => {
             `);
         }
         await Course.updateCourses();
-        await Course.setActiveCourse(45714);
+        try {
+            await Course.setActiveCourse(45714);
+        } catch(e) {
+            console.error("Failed to set active course", e);
+        }
         CourseView.set_course_view();
     })
 

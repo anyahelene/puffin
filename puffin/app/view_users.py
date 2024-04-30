@@ -37,7 +37,6 @@ def users():
     # with Session() as db:
     if current_user.is_admin:
         users = _users()
-        print(users)
         return [u.to_json() for u in users]
     else:
         return [current_user.to_json()]

@@ -101,6 +101,7 @@ export class SelfUser extends _User {
     discord_account?: _Account;
     course_user?: _CourseUser;
     on_update?: () => void;
+    login_required?: true;
 }
 function to_arraymap<T extends { id: number }>(array: T[]) {
     const arraymap: T[] = [];
@@ -173,6 +174,7 @@ export class Course extends _Course {
         removed.forEach((c) => {
             console.warn('Removed course: ', c);
         });
+        CourseView.update_course_list();
         return [...Course.courses];
     }
     static async setActiveCourse(course_id: number, update = true): Promise<Course> {

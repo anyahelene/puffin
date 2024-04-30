@@ -175,8 +175,8 @@ def favicon_ico():
 def favicon_png():
     return send_from_directory(app.static_folder, 'favicon.png', mimetype='image/png')
 
-@app_bp.route('/')
 @app_bp.route('/index.html')
+@app_bp.route('/')
 def index_html():
     return render_template('index.html')
     #return send_from_directory(app.static_folder, 'index.html', mimetype='text/html')

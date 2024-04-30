@@ -58,7 +58,8 @@ def _init(tbl, src_cols):
 
     return sa.select(*cols).select_from(sel), infos
 
-
+# A view of User with account info included. For each account provider, fields name
+# provider_id=Account.external_id and provider_username=Account.username will be added
 class UserAccount(database.ViewBase):
     __tablename__ = 'user_account'
     _cols,_infos = _init(model_tables.User, [model_tables.User.id])
