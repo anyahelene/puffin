@@ -5,6 +5,7 @@ from typing import IO, Tuple, Type, TypeVar
 import regex
 from slugify import slugify
 import sqlalchemy as sa
+from puffin.app.errors import ErrorResponse
 from puffin.db import database
 
 from puffin.db.model_views import CourseUser, FullUser, UserAccount
@@ -234,6 +235,15 @@ def check_group_membership(db: sa.orm.Session, course: Course, group: Group, use
         logger.info(f'check_group_membership(%s): user %s not enrolled in course %s',
                     group.slug, user.lastname, course)
 
+def check_unique(db: sa.orm.Session, cls : Type[Group], message:str, *clauses: tuple[str,sa.ColumnExpressionArgument]):
+    not_unique = []
+    for (field, column_expr) in clauses:
+        if db.execute(sa.select(cls).where(column_expr)).one_or_none():
+            not_unique.append(field)
+    if len(not_unique) > 0:
+        logger.info(f'check_unique found: %s', not_unique)
+        raise ErrorResponse(message, not_unique=not_unique)
+
 
 TYPESCRIPT_TYPES = {
     int: 'number',
@@ -313,12 +323,13 @@ def table_to_ts(name: str, table: sa.Table, f: IO):
         if col.info.get('secret', False):
             continue
         f.write('    {\n')
-        f.write(f'        name: "{col.name}",\n')
-        f.write(f'        type: "{col.type.python_type.__name__}",\n')
+        f.write(f'        name: "{col.info.get("name", col.name)}",\n')
+        f.write(f'        type: "{col.info.get("type", col.type.python_type.__name__)}",\n')
         if col.doc:
             f.write(f'        doc: "{col.doc}",\n')
         for key in col.info:
-            f.write(f'        {key}: {json.dumps(col.info[key])},\n')
+            if key not in ['name', 'type']:
+                f.write(f'        {key}: {json.dumps(col.info[key])},\n')
         f.write('    },\n')
     f.write(']\n')
     f.write(f'tables["{name}"] = {name}_columns;\n')

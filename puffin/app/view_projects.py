@@ -46,6 +46,7 @@ def get_gitlab_project(path):
         try:
             project = gc.gl.projects.get(path)
             if user.is_admin or project.members_all.get(gitlab_acc.external_id).access_level >= 30:
+                print(project.asdict())
                 return project.asdict()
             else:
                 raise ErrorResponse('Access denied', status_code=403)

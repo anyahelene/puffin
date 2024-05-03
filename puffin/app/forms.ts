@@ -1,6 +1,7 @@
 import { html, render } from 'uhtml';
 export const GITLAB_PREFIX = 'https://git.app.uib.no/';
 export const GITLAB_PATH_RE = '([a-zA-Z0-9_\\.][a-zA-Z0-9_\\-\\.]*[a-zA-Z0-9_\\-]|[a-zA-Z0-9_])';
+export const SLUG_RE = '[a-zA-Z0-9_+\\-]+';
 
 export function form_field(data: Record<string, any>) {
     data.ref = data.ref || { current: undefined };
@@ -18,20 +19,27 @@ export function form_field(data: Record<string, any>) {
             obj[data.field] = data.ref.current.value;
     };
     const button2 = data.button2_title
-    ? html`<button type="button" class=${data.button2_class} onclick=${data.button2_make_onclick(data)}
+        ? html`<button
+              type="button"
+              class=${data.button2_class}
+              onclick=${data.button2_make_onclick(data)}
               >${data.button2_title}</button
           >`
-    : '';
+        : '';
     const button = data.button_title
         ? html`<span class="buttons">
-              <button type="button" class=${data.button_class} onclick=${data.button_make_onclick(data)}
+              <button
+                  type="button"
+                  class=${data.button_class}
+                  onclick=${data.button_make_onclick(data)}
                   >${data.button_title}</button
               >${button2 || ''}</span
           >`
         : '';
-            if (data.editable)
+    const label = data.label === false ? '' : html`<label for=${data.id}>${data.name}:</label>`;
+    if (data.editable)
         return html`<div class="form-field">
-            <label for=${data.id}>${data.name}:</label>
+            ${label}
             <input
                 type=${data.type}
                 id=${data.id}
@@ -43,12 +51,13 @@ export function form_field(data: Record<string, any>) {
                 onchange=${changeHandler}
                 value=${data.value || ''}
                 ?disabled=${data.disabled}
+                size=${data.size}
             />
             ${button}
         </div>`;
     else if (data.link && data.value)
         return html`<div class="form-field">
-            <label for=${data.id}>${data.name}:</label>
+            ${label}
             <span class="field" id=${data.id}
                 ><a href=${data.link} target="_blank">${data.value || '\u202f'}</a></span
             >
@@ -56,13 +65,11 @@ export function form_field(data: Record<string, any>) {
         </div>`;
     else
         return html`<div class="form-field">
-            <label for=${data.id}>${data.name}:</label>
+            ${label}
             <span class="field" id=${data.id}>${data.value || '\u202f'}</span>
             ${button}
-        </div>
-        `;
+        </div> `;
 }
-
 
 export function form_select(data: Record<string, any>) {
     const ref = data.ref || { current: undefined };
@@ -78,31 +85,35 @@ export function form_select(data: Record<string, any>) {
         else if (ref.current && ref.current.checkValidity() && field && obj)
             obj[field] = ref.current.value;
     };
-    const formatOption = (alt:any, i:number) => {
-        let value:string,text:string;
-        if(Array.isArray(alt)) {
+    const formatOption = (alt: any, i: number) => {
+        let value: string, text: string;
+        if (Array.isArray(alt)) {
             value = alt[0];
             text = alt[1]?.toString();
         } else {
             value = text = alt?.toString();
         }
-        return html`<option .selected=${data.default === value} value="${value}">${text}</option>`
-    }
+        return html`<option .selected=${data.default === value} value="${value}">${text}</option>`;
+    };
     if (data.editable)
         return html`<div class="form-field">
             <label for=${id}>${data.name}:</label>
-            <select type=${type}
+            <select
+                type=${type}
                 id=${id}
                 ref=${ref}
                 name=${field}
                 required=${data.required}
                 onchange=${changeHandler}
             >
-            ${data.alternatives.flatMap(formatOption)}
+                ${data.alternatives.flatMap(formatOption)}
             </select>
             ${data.button_title
                 ? html`<span class="buttons">
-                      <button type="button" class=${data.button_class} onclick=${data.button_make_onclick(ref, field)}
+                      <button
+                          type="button"
+                          class=${data.button_class}
+                          onclick=${data.button_make_onclick(ref, field)}
                           >${data.button_title}</button
                       ></span
                   >`

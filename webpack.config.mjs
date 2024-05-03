@@ -12,9 +12,8 @@ const renderer = new marked.Renderer();
 const hmrp = new webpack.HotModuleReplacementPlugin();
 const isDevServer = process.env.WEBPACK_SERVE;
 
-export default {
+const config = {
     mode: 'development',
-    devtool: 'source-map',
     target: 'web',
     context: path.resolve(__dirname, 'puffin'),
     plugins: [
@@ -56,18 +55,11 @@ export default {
     },
     devServer: {
         static: [
-            './dist/webroot/',
+            path.resolve(__dirname, 'dist', 'webroot'),
+            path.resolve(__dirname, 'static'),
             {
                 directory: '../fonts/',
                 publicPath: '/fonts',
-            },
-            {
-                directory: '../py/pyodide',
-                publicPath: '/py',
-            },
-            {
-                directory: '../wasm-bin',
-                publicPath: '/bin',
             },
         ],
         hot: 'only',
@@ -217,3 +209,17 @@ export default {
         ],
     },
 };
+
+export default function init(env, argv) {
+    config.mode = argv.mode || 'development';
+    console.log("MODE: ", config.mode);
+    if(config.mode === 'development') {
+        config.devtool = 'source-map'
+    } else if(config.mode === 'production') {
+        config.output.path = path.resolve(__dirname, 'prod-dist', 'webroot')
+        config.devServer = undefined;
+    }
+    return config;
+}
+
+//export default init;

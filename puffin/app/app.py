@@ -141,7 +141,7 @@ def shell_setup():
     from sqlalchemy import select, alias, and_, or_, column, join, literal, literal_column, all_, any_, label, outerjoin
     import sqlalchemy as sa
     from puffin.db import model_tables, model_util, model_views, database
-    from puffin.db.model_tables import User, Account, Course, Enrollment, Membership, Group, JoinModel, LogType, Id
+    from puffin.db.model_tables import User, Account, Course, Enrollment, Membership, Group, JoinModel, LogType, Id, Project
     from puffin.db.model_views import CourseUser, UserAccount, FullUser
     from importlib import reload
     db = database.db_session

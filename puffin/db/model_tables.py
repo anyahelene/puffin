@@ -28,6 +28,7 @@ ROLES = {
     'admin': 'Anyone enrolled as teacher or admin in the same course',
     'member': 'Anyone enrolled in current course/group'
 }
+ROLE_ICONS = {'student': '🧑‍🎓', 'ta':'🧑‍💻', 'teacher': '🧑‍🏫', 'admin': '🧑‍💼', '': '🤷'}
 ACCESS = {
     'read': 'Can read data unless secret',
     'write': 'Can write data if writable',
@@ -54,6 +55,10 @@ class AssignmentModel(enum.Enum):
     GITLAB_GROUP_PROJECT = "Gitlab project created by student group"
     GITLAB_STUDENT_PROJECT = "Gitlab project created by student"
 
+class OwnerKind(enum.Enum):
+    OWNER_KIND_COURSE = "course"
+    OWNER_KIND_USER = "user"
+    OWNER_KIND_GROUP = "group"
 
 class AuditLog(Base):
     __tablename__ = 'audit_log'
@@ -172,11 +177,11 @@ class Group(Base):
     external_id: Mapped[Optional[str]] = mapped_column(unique=True)
     name: Mapped[str] = mapped_column(info={'access': {'write': 'member'}})
     slug: Mapped[str] = \
-        mapped_column(info={'form': {'slugify': 'name'}})
+        mapped_column(info={'form': {'slugify': 'name'}, 'type':'group.slug'})
     join_model: Mapped[JoinModel] = mapped_column(default=JoinModel.RESTRICTED)
     join_source: Mapped[Optional[str]] = mapped_column(
         doc="E.g. gitlab(project_id)", default=None)
-
+    json_data = mapped_column(JSON, server_default="{}", nullable=False)
     info = {
         'access': {'read': 'course:member', 'sync': 'member'}
     }
@@ -195,7 +200,7 @@ class Membership(Base):
                                      'access': {'read': 'peer'}})
     group_id: Mapped[int] = mapped_column(
         ForeignKey('group.id'), info={'immutable': True})
-    role: Mapped[str]
+    role: Mapped[str] = mapped_column(info = {'icons': ROLE_ICONS})
     join_model: Mapped[JoinModel] = mapped_column(default=JoinModel.RESTRICTED)
 
     info = {
@@ -220,7 +225,7 @@ class Enrollment(Base):
     )
     course_id: Mapped[int] = mapped_column(info={'immutable': True})
     role: Mapped[str] = mapped_column(
-        info={'icons': {'student': '🧑‍🎓', 'ta':'🧑‍💻', 'teacher': '🧑‍🏫', 'admin': '🧑‍💼', '': '🤷'},
+        info={'icons': ROLE_ICONS,
               'access': {'write': 'admin', 'read': 'peer'}})
 
     info = {
@@ -239,7 +244,7 @@ class User(Base):
     firstname: Mapped[str]
     email: Mapped[str]
     is_admin: Mapped[bool] = mapped_column(server_default=text('FALSE'),
-                                           info={'icons': {'true': '🧑‍💻', '': ' '}})
+                                           info={'hide':True, 'icons': {'true': '🧑‍💻', '': ' '}})
     locale: Mapped[Optional[_str_30]]
     expiry_date: Mapped[Optional[datetime]] = mapped_column(
         info={'view': {'course_user': False}})

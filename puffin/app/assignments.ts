@@ -4,6 +4,7 @@ import { Assignment, Course, Project } from './model';
 import { busy_event_handler, get_gitlab_project, request } from './puffin';
 import slugify from 'slugify';
 import { form_field, form_select, GITLAB_PATH_RE, GITLAB_PREFIX } from './forms';
+import { pick_project_form } from './gitlab';
 
 export function slugify_to(id: string): (ev: InputEvent) => void {
     return (ev: InputEvent) => {
@@ -207,7 +208,7 @@ function assignment_panel() {
         .select()
         .done();
 }
-export function add_assignment_form(proj_ref = undefined) {
+export async function add_assignment_form(proj_ref = undefined) {
     const asgn = new Assignment({
         id: 0,
         course_id: Course.current?.external_id,
@@ -217,58 +218,11 @@ export function add_assignment_form(proj_ref = undefined) {
     console.log(asgn)
     asgn.release_date = new Date();
     const panel = assignment_panel();
-    const get_gitlab_asgn = busy_event_handler(
-        async (ev) => {
-            asgn._project_ref = (document.getElementById('asgn_project') as HTMLInputElement).value;
-            asgn._error = undefined;
-            await fill_asgn_form_from_gitlab(asgn);
-            if (asgn._error || !asgn.course || !asgn.gitlab_id) {
-                show_form();
-            } else {
-                edit_assignment_form(asgn, true, panel);
-            }
-        },
-        () => {},
-    );
-    const show_form = () => {
-        console.log('show_form', asgn);
-        render(
-            panel,
-            html`
-                <form>
-                    ${!asgn.course.external_id ? html`<div class="error">No course selected!</div>` : ''}
-                    <label for="asgn_project">Gitlab project:</label>
-                    <input
-                        type="text"
-                        id="asgn_project"
-                        name="project_ref"
-                        placeholder="URL or path or project id"
-                        value=${asgn._project_ref || ''}
-                    />
-                    <div class="buttons">
-                        <button type="button" id="asgn_project_from" onclick=${get_gitlab_asgn}
-                            >New assignment</button
-                        >
-                    </div>
-                    ${asgn._error ? html`<div class="error">${asgn._error}</div>` : ''}
-                </form>
-            `,
-        );
-    };
-    show_form();
-}
-async function fill_asgn_form_from_gitlab(asgn: Assignment) {
-    if (asgn._project_ref) {
-        const proj = await get_gitlab_project(asgn.course.external_id, asgn._project_ref);
-        if (proj?.id) {
-            asgn.gitlab_id = proj.id;
-            asgn.description = proj.description;
-            asgn.name = proj.name;
-            asgn.slug = proj.path;
-        } else {
-            asgn._error = proj.message;
-        }
-        return asgn;
+    try {
+        await pick_project_form(asgn, "Create assignment", panel, false);
+        edit_assignment_form(asgn, true, panel);
+    } catch (e) {
+        console.error(e);
+        panel.remove();
     }
-    throw new Error('Function not implemented.');
 }

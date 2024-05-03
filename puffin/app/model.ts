@@ -13,15 +13,99 @@ import {
     _Project,
     _CourseUser,
 } from './model_gen';
-import { request, puffin } from './puffin';
+import { request, puffin, to_table, gitlab_url, handle_internal_link } from './puffin';
 import { CourseView } from './courses';
+import { BorbPanelBuilder } from '../borb/Frames';
 
 export const tables = _tables;
 export type Membership = _Membership;
 export class Group extends _Group {
     _original: _Group;
     members: Member[];
+    course: Course;
+    constructor(jsonData:Record<string,any>, course: Course) {
+        super(jsonData);
+        this.course = course;
+    }
+
+    as_link(link_text : string = undefined) {
+        link_text = link_text ? link_text : this.slug;
+        return html`<a data-type="group" data-target=${this.id} onclick=${handle_internal_link} href=${`group://${this.id}`}>${link_text}</a>`;
+    }
+
+    display(panel : HTMLElement = undefined) {
+        panel = panel ? panel : new BorbPanelBuilder()
+            .frame('frame2')
+            .panel('div', 'group_display')
+            .title(this.name)
+            .select(true)
+            .done();
+        const table1 = to_table({ _type: 'Member[]', data: this.members, selectable:false });
+        const debug = puffin.debug['console'] ? html`<div><button type="button" onclick=${() => console.log(this)}>Debug</button></div>` : '';
+        const children = this.children;
+        const children_table = children.length > 0 ? to_table({_type:'Group[]', data:children, selectable:false}) : '';
+
+        render(
+            panel,
+            html`
+                ${this.kind === 'team'
+                    ? html`<h2>Team ${this.name} ${this.parent ? html`(${this.parent.as_link()})` : ''}</h2>
+                          <a href="${gitlab_url(this.json_data.project_path)}" target="_blank"
+                              > ${this.json_data.project_name} – [${this.json_data.project_path}]</a
+                          >`
+                    : html`<h2>Group/${this.kind} ${this.name}`}
+                <div><borb-sheet>${table1}</borb-sheet></div>
+                ${this.join_source ? html`<p>(members imported from ${this.join_source})</p>` : ''}
+                <div><borb-sheet>${children_table}</borb-sheet></div>
+                ${debug}
+            `,
+        );
+    }
+
+    async sync_with_gitlab() {
+        await request(`courses/${this.course_id}/groups/${this.id}/sync`);
+    }
+
+    get parent() {
+        return this.course.groupsById[this.parent_id];
+    }
+
+    get children() {
+        return this.course.groups.filter(g => g.parent_id === this.id);
+    }
 }
+export const Team_columns = [
+    {
+        name: "id",
+        type: "int",
+    },
+    {
+        name: "parent_id",
+        type: "custom",
+        mapping: (field, obj:Group,spec) => html.node`${obj.parent?.as_link()}`
+    },
+    {
+        name: "name",
+        type: "str",
+        access: {"write": "member"},
+    },
+    {
+        name: "slug",
+        type: "group.slug",
+        form: {"slugify": "name"},
+    },
+    {
+        name: "project",
+        type: "custom",
+        mapping: (field, obj, spec) => html.node`<a href="${gitlab_url(obj.json_data.project_path)}" target="_blank">${obj.json_data.project_name}</a>`
+    },
+    {
+        name: "json_data",
+        type: "dict",
+    },
+]
+tables["Team"] = Team_columns;
+
 export class Project extends _Project {
     full_path(): string {
         if (this.namespace_slug) return this.namespace_slug + '/' + this.slug;
@@ -50,6 +134,11 @@ export class Assignment extends _Assignment {
     }
     get course(): Course {
         return this._course;
+    }
+
+    as_link(link_text : string = undefined) {
+        link_text = link_text ? link_text : this.slug;
+        return html`<a data-type="assignment" data-target=${this.id} onclick=${handle_internal_link} href=${`group://${this.id}`}>${link_text}</a>`;
     }
     has_valid_gitlab_path() {
         console.log(this);
@@ -94,6 +183,17 @@ export class Assignment extends _Assignment {
 export class User extends _FullUser {
     _original: _User;
     groups: Group[];
+
+    get team() {
+        return this.groups.filter(g => g.kind === 'team')
+    }
+    get section() {
+        return this.groups.filter(g => g.kind === 'section')
+    }
+    as_link(link_text : string = undefined) {
+        link_text = link_text ? link_text : `${this.firstname} ${this.lastname}`;
+        return html`<a data-type="user" data-target=${this.id} onclick=${handle_internal_link} href=${`group://${this.id}`}>${link_text}</a>`;
+    }
 }
 export class SelfUser extends _User {
     gitlab_account?: _Account;
@@ -111,17 +211,43 @@ function to_arraymap<T extends { id: number }>(array: T[]) {
     return arraymap;
 }
 export type Member = {
-    id: number;
-    slug: string;
+    user_id: number;
+    username: string;
     firstname: string;
     lastname: string;
     role: string;
     join_model: string;
 };
+export const Member_columns = [
+    {
+        name: 'role',
+        type: 'str',
+        icons: {
+            student: '\ud83e\uddd1\u200d\ud83c\udf93',
+            ta: '\ud83e\uddd1\u200d\ud83d\udcbb',
+            teacher: '\ud83e\uddd1\u200d\ud83c\udfeb',
+            admin: '\ud83e\uddd1\u200d\ud83d\udcbc',
+            '': '\ud83e\udd37',
+        },
+    },
+    {
+        name: 'lastname',
+        type: 'str',
+    },
+    {
+        name: 'firstname',
+        type: 'str',
+    },
+    {
+        name: 'join_model',
+        type: 'JoinModel',
+    },
+];
+tables['Member'] = Member_columns;
 
 export class Course extends _Course {
-    public static courses = [];
-    public static current = null;
+    public static courses : Course[] = [];
+    public static current : Course = null;
     static current_user: SelfUser;
 
     _original: _Course;
@@ -131,6 +257,7 @@ export class Course extends _Course {
     public usersById: User[] = [];
     public groups: Group[] = [];
     public groupsById: Group[] = [];
+    public groupsBySlug: Map<string, Group> = new Map();
 
     has_valid_gitlab_path() {
         if (!this._gitlab_path) this._gitlab_path = this.json_data['gitlab_path'];
@@ -161,7 +288,6 @@ export class Course extends _Course {
         const courses = (await request('courses/')) as _Course[];
         const activeCourses: Set<number> = new Set();
         courses.forEach((c) => {
-            
             activeCourses.add(c.external_id);
             if (Course.courses[c.external_id]) {
                 Course.courses[c.external_id].updateCourse(c);
@@ -190,10 +316,9 @@ export class Course extends _Course {
         Course.current = this;
         Course.current_user.course_user = this.currentUser();
         Course.current_user?.on_update();
-        if(update)
-            await this.updateCourse();
+        if (update) await this.updateCourse();
         CourseView.update_course_list();
-        CourseView.refresh(true, false);
+        //CourseView.refresh(true, false);
 
         return Promise.resolve(Course.current);
     }
@@ -227,11 +352,13 @@ export class Course extends _Course {
     async updateGroups(): Promise<Group[]> {
         const gs: _Group[] = await request(`courses/${this.external_id}/groups`);
         this.groups = [];
+        this.groupsBySlug.clear();
         gs.forEach((g) => {
-            const group = this.groupsById[g.id] || new Group(g);
+            const group = this.groupsById[g.id] || new Group(g, this);
             group.update(g, this.revision);
             group._original = g;
             this.groups.push(group);
+            this.groupsBySlug.set(group.slug, group);
         });
         this.groupsById = to_arraymap(this.groups);
         return this.groups;
@@ -245,8 +372,8 @@ export class Course extends _Course {
             const g = this.groupsById[m.group_id];
             const u = this.usersById[m.user_id];
             g.members.push({
-                id: m.user_id,
-                slug: u.canvas_username,
+                user_id: m.user_id,
+                username: u.canvas_username,
                 lastname: u.lastname,
                 firstname: u.firstname,
                 role: m.role,
@@ -254,5 +381,13 @@ export class Course extends _Course {
             });
             u.groups.push(g);
         });
+    }
+
+    clone_team_projects() {
+        return this.groups.filter(g => g.kind === 'team').map(t => `[ ! -f ${t.slug} ] && git clone git@git.app.uib.no:${t.json_data.project_path} ${t.slug} && sleep 2`);
+    }
+    as_link(link_text : string = undefined) {
+        link_text = link_text ? link_text : `${this.slug}`;
+        return html`<a data-type="course" data-target=${this.id} onclick=${handle_internal_link} href=${`group://${this.id}`}>${link_text}</a>`;
     }
 }

@@ -1,8 +1,10 @@
 from datetime import datetime
+from http import HTTPStatus
 from flask import Blueprint, Flask, abort, current_app, flash, g, jsonify, redirect, render_template, request, session, url_for
 from flask_login import LoginManager, current_user, login_required, login_user
 from flask_wtf import CSRFProtect, FlaskForm
 from wtforms import StringField, PasswordField, SubmitField
+from puffin.app.errors import ErrorResponse
 from puffin.db.model_tables import User,Account
 from puffin.db.database import db_session
 from sqlalchemy import select
@@ -34,7 +36,7 @@ def init(app:Flask, parent:Blueprint):
     gitlab_oauth = oauth.register('gitlab',
                                   server_metadata_url=app.config['GITLAB_BASE_URL'] + '.well-known/openid-configuration',
                                   client_kwargs={'scope':'openid profile email'})
-    print(oauth._clients, gitlab_oauth.__dict__)
+    print("/login init: ", oauth._clients, gitlab_oauth.__dict__)
     for k,v in gitlab_oauth.__dict__.items():
         print(k, v)
 
@@ -42,17 +44,16 @@ def init(app:Flask, parent:Blueprint):
 def login():
     form = LoginForm()
     if form.is_submitted():
-        print(f'Received form: {"invalid" if not form.validate() else "valid"} {form.form_errors} {form.errors}')
-        print(request.form)
+        _logger.info('/login/login[%s]: Received form: %s form_errors=%s errors=%s form=%s', g.log_ref, "invalid" if not form.validate() else "valid", form.form_errors, form.errors, request.form)
     if form.validate_on_submit():
         username = form.username.data
         password = form.password.data
         u = db_session.execute(select(User).where(User.email==username)).scalar_one_or_none()
 
-        print('found user:', u)
+        _logger.info('/login/login[%s]: Found user: %s', g.log_ref, u)
         if u and u.password and check_password_hash(u.password, password):
             if not u.is_expired:
-                print('logged in successfully, redirecting to', url_for('app.index_html'))
+                _logger.info('/login/login[%s]: Logged in successfully, redirecting to %s', g.log_ref, url_for('app.index_html'))
                 #session.clear()
                 login_user(u)
                 session['real_user'] = u.id
@@ -64,7 +65,7 @@ def login():
         else:
             error = "Wrong username or password"
 
-        print('Error:', error)
+        _logger.error("/login/login error: %s", error)
         flash(error + f'(ref: {g.log_ref})')
 
     return render_template('./login.html', form=form)
@@ -73,10 +74,10 @@ def login():
 @bp.route('/gitlab')
 def login_gitlab():
     redirect_uri = url_for('app.login.authorize_gitlab', _external=True)
-    print('login_gitlab: uri', redirect_uri)
+    _logger.info("/login/gitlab[%s]: redirect_uri=%s", g.log_ref, redirect_uri)
     r= oauth.gitlab.authorize_redirect(redirect_uri)
-    for k,v in gitlab_oauth.__dict__.items():
-        print(k, v)
+    #for k,v in gitlab_oauth.__dict__.items():
+    #    print(k, v)
     return r
 
 @bp.route('/logout')
@@ -87,12 +88,12 @@ def logout_gitlab():
 @bp.route('/sudone')
 @login_required
 def sudone():
-    print("sudone", repr(session.get('real_user')), repr(current_user.id))
+    _logger.info("/login/sudone[%s]: real=%d, id=%s",  g.log_ref, repr(session.get('real_user')), repr(current_user.id))
     real_user = session.get('real_user')
 
     if real_user != None and real_user != current_user.id:
         u = db_session.execute(select(User).where(User.id==real_user)).scalar_one_or_none()
-        print("returning to user ", u)
+        _logger.info("/login/sudone[%s]: returning to user %s",  g.log_ref, u)
         if u:
             login_user(u)
             flash(f"Returned to real user {u.email}")
@@ -103,7 +104,7 @@ def sudone():
 @bp.route('/sudo/<username>')
 @login_required
 def sudo(username: str = ""):
-    print("sudo", repr(session.get('real_user')), repr(current_user.id))
+    _logger.info("/login/sudo[%s]: real=%d, id=%s",  g.log_ref, repr(session.get('real_user')), repr(current_user.id))
 
     if not current_user.is_admin:
         abort(403)
@@ -111,6 +112,7 @@ def sudo(username: str = ""):
         u = db_session.execute(select(User).where(User.email==username)).scalar_one_or_none()
         if u:
             login_user(u, force=True)
+            _logger.info("/login/sudo[%s]: switched to %s", g.log_ref, u.email)
             flash(f"Switched to user {u.email}")
         else:
             flash(f"Didn't find user", category="error")
@@ -129,9 +131,9 @@ def define_gitlab_from_gitlab_userinfo(user, external_id, userinfo, profile):
 @bp.route('/gitlab/callback')
 def authorize_gitlab():
     token = oauth.gitlab.authorize_access_token()
-    _logger.info('authorize_gitlab: token %s', token)
+    _logger.info('/login/authorize_gitlab[%s]: token %s', g.log_ref, token)
     userinfo = token['userinfo']
-    _logger.info('OpenID Connect callback userinfo: %s', userinfo)
+    _logger.info('/login/authorize_gitlab[%s]: OpenID Connect callback userinfo: %s', g.log_ref,  userinfo)
     # do something with the token and profile
     userid = int(userinfo['sub'])
     uacc = db_session.execute(select(User,Account).where(User.id==Account.user_id,Account.external_id==userid, Account.provider_name=='gitlab')).one_or_none()
@@ -139,12 +141,12 @@ def authorize_gitlab():
     #resp = oauth.gitlab.get(f'{current_app.config["GITLAB_BASE_URL"]}/api/v4/user', token=token)
     #resp.raise_for_status()
     #profile = resp.json()
-    _logger.info('OpenID Connect login - account %s', uacc)
-    if uacc:
+    _logger.info('/login/authorize_gitlab[%s]: OpenID Connect login - account %s', g.log_ref, uacc)
+    if uacc: # user exists, connected to this GitLab account
         acc : Account = uacc.Account
         user : User = uacc.User
         if not user.is_expired:
-            _logger.info('logged in successfully, redirecting to %s', url_for('app.index_html'))
+            _logger.info('/login/authorize_gitlab[%s]: logged in successfully, redirecting to %s', g.log_ref, url_for('app.index_html'))
             #session.clear()
             login_user(user)
             session['real_user'] = user.id
@@ -156,54 +158,56 @@ def authorize_gitlab():
             return redirect(url_for('app.index_html'))
         else:
             error = "Account expired – contact administrators"
-            _logger.error('Error: %s', error)
+            _logger.error('/login/authorize_gitlab[%s]: Error: %s', g.log_ref, error)
             flash(error + f'(ref: {g.log_ref})')
             return redirect('/')
 
     profile = gc.get_user(userid)
-    _logger.info('Profile: %s', profile)
+    _logger.info('/login/authorize_gitlab[%s]: Profile: %s', g.log_ref, profile)
     if not profile:
         error = f'Failed to retrieve information about {acc.username}. Please ask a TA for assistance. Sorry!'
 
 
     if current_user: # user is logged in, we're connecting to the GitLab account
-        _logger.warn('OpenID Connect login – no account, current user %s, profile data %s', current_user, profile)
+        _logger.warn('/login/authorize_gitlab[%s]: OpenID Connect login – no account, current user %s, profile data %s', g.log_ref, current_user, profile)
 
         acc = define_gitlab_from_gitlab_userinfo(current_user, userid, userinfo, profile)
 
-        flash(f'Successfully connected to your GitLab account {acc.username}!')
+        flash(f'Successfully connected to your GitLab account {acc.username}! (ref: {g.log_ref})')
         return redirect(url_for('app.index_html'))
     else:
         user = db_session.execute(select(User).where(User.email == userinfo['email'])).one_or_none()
         if user and user.account['gitlab']:
+            # user exists with this email address, but different GitLab account
             error = f'User with email {userinfo["email"]} already exists with a GitLab account'
         elif user:
+            # user exists, not connected to GitLab
             acc = define_gitlab_from_gitlab_userinfo(user, userid, userinfo, profile)
             login_user(user)
             session['real_user'] = user.id
             session['login_ref'] = g.log_ref
-            flash(f'Successfully logged in and connected to your GitLab account {acc.username}!')
+            flash(f'Successfully logged in and connected to your GitLab account {acc.username}! (ref: {g.log_ref})')
             return redirect(url_for('app.index_html'))
         else:
             error = f'No user found corresponding to your GitLab account {acc.username}. Please as a TA for assistance. Sorry!'
 
-    _logger.error('Error: %s', error)
-    flash(error+ f'(ref: {g.log_ref})')
-    return redirect(url_for('app.index_html'))
+    _logger.error('/login/authorize_gitlab[%s]: Error: %s', g.log_ref, error)
+    flash(error+ f' (ref: {g.log_ref})')
+    return redirect(url_for('app.login.login'))
             
 # This method is called whenever the login manager needs to get
 # the User object for a given user id
 @login_manager.user_loader
 def user_loader(user_id):
     user = db_session.get(User, int(user_id))
-    print('user_loader', user)
+    print(user)
     return user
 
 @login_manager.unauthorized_handler
 def handle_needs_login():
     login_url = url_for('app.login.login', next_page=request.endpoint)
     if request.accept_mimetypes.best_match(['application/json', 'text/html']) == 'application/json':
-        return jsonify({'status':'error', 'message':'Login required', 'login_required':True, 'login_url': login_url})
+        return jsonify({'status':'error', 'message':'Login required', 'login_required':True, 'login_url': login_url, 'log_ref' : g.log_ref})
     else:
         return redirect(login_url)
 
@@ -224,21 +228,14 @@ def request_loader(request):
 
     (auth_scheme, auth_params) = auth.split(maxsplit=1)
     auth_scheme = auth_scheme.casefold()
-    if auth_scheme == 'basic':  # Basic auth has username:password in base64
-        (uid,passwd) = b64decode(auth_params.encode(errors='ignore')).decode(errors='ignore').split(':', maxsplit=1)
-        print(f'Basic auth: {uid}:{passwd}')
-        u = users.get(uid)
-        if u: # and check_password(u.password, passwd):
-            return user_loader(uid)
-    elif auth_scheme == 'bearer': # Bearer auth contains an access token;
+    if auth_scheme == 'bearer': # Bearer auth contains an access token;
         # an 'access token' is a unique string that both identifies
         # and authenticates a user, so no username is provided (unless
         # you encode it in the token – see JWT (JSON Web Token), which
         # encodes credentials and (possibly) authorization info)
-        print(f'Bearer auth: {auth_params}')
-        for uid in users:
-            if users[uid].get('token') == auth_params:
-                return user_loader(uid)
+        _logger.error("/login/request_loader: Bearer auth not supported: %s", g.log_ref, auth_params)
+        raise ErrorResponse('Not supported', 404)
+
     # For other authentication schemes, see
     # https://developer.mozilla.org/en-US/docs/Web/HTTP/Authentication
 
@@ -250,4 +247,4 @@ def request_loader(request):
     # (If an authenticated user doesn't have authorization to view a page,
     # Flask will send a "403 Forbidden" response, so think of
     # "Unauthorized" as "Unauthenticated" and "Forbidden" as "Unauthorized")
-    abort(HTTPStatus.UNAUTHORIZED, www_authenticate = WWWAuthenticate('Basic realm=inf226, Bearer'))
+    abort(HTTPStatus.UNAUTHORIZED)

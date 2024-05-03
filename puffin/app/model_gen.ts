@@ -353,6 +353,7 @@ export class _Group {
     slug : string;
     join_model : 'RESTRICTED'|'OPEN'|'AUTO'|'CLOSED';
     join_source? : string;
+    json_data : Record<string,any> = {};
     constructor(jsonData:Record<string,any>, revision=0) {
         this.id = jsonData.id;
         this.course_id = jsonData.course_id;
@@ -399,6 +400,10 @@ export class _Group {
             changed = true;
             this.join_source = jsonData.join_source;
         }
+        if(!isEqual(this.json_data, jsonData.json_data)) {
+            changed = true;
+            this.json_data = {...jsonData.json_data};
+        }
         return changed;
     }
 }
@@ -432,7 +437,7 @@ export const Group_columns = [
     },
     {
         name: "slug",
-        type: "str",
+        type: "group.slug",
         form: {"slugify": "name"},
     },
     {
@@ -443,6 +448,10 @@ export const Group_columns = [
         name: "join_source",
         type: "str",
         doc: "E.g. gitlab(project_id)",
+    },
+    {
+        name: "json_data",
+        type: "dict",
     },
 ]
 tables["Group"] = Group_columns;
@@ -502,6 +511,7 @@ export const Membership_columns = [
     {
         name: "role",
         type: "str",
+        icons: {"student": "\ud83e\uddd1\u200d\ud83c\udf93", "ta": "\ud83e\uddd1\u200d\ud83d\udcbb", "teacher": "\ud83e\uddd1\u200d\ud83c\udfeb", "admin": "\ud83e\uddd1\u200d\ud83d\udcbc", "": "\ud83e\udd37"},
     },
     {
         name: "join_model",
@@ -562,7 +572,7 @@ export const Enrollment_columns = [
     {
         name: "role",
         type: "str",
-        icons: {"student": "\ud83e\uddd1\u200d\ud83c\udf93", "admin": "\ud83e\uddd1\u200d\ud83d\udcbc", "": "\ud83e\uddd1\u200d\ud83c\udfeb"},
+        icons: {"student": "\ud83e\uddd1\u200d\ud83c\udf93", "ta": "\ud83e\uddd1\u200d\ud83d\udcbb", "teacher": "\ud83e\uddd1\u200d\ud83c\udfeb", "admin": "\ud83e\uddd1\u200d\ud83d\udcbc", "": "\ud83e\udd37"},
         access: {"write": "admin", "read": "peer"},
     },
 ]
@@ -651,6 +661,7 @@ export const User_columns = [
     {
         name: "is_admin",
         type: "bool",
+        hide: true,
         icons: {"true": "\ud83e\uddd1\u200d\ud83d\udcbb", "": " "},
     },
     {
@@ -1533,6 +1544,7 @@ export const CourseUser_columns = [
     {
         name: "is_admin",
         type: "bool",
+        hide: true,
         icons: {"true": "\ud83e\uddd1\u200d\ud83d\udcbb", "": " "},
     },
     {
@@ -1547,7 +1559,7 @@ export const CourseUser_columns = [
     {
         name: "role",
         type: "str",
-        icons: {"student": "\ud83e\uddd1\u200d\ud83c\udf93", "admin": "\ud83e\uddd1\u200d\ud83d\udcbc", "": "\ud83e\uddd1\u200d\ud83c\udfeb"},
+        icons: {"student": "\ud83e\uddd1\u200d\ud83c\udf93", "ta": "\ud83e\uddd1\u200d\ud83d\udcbb", "teacher": "\ud83e\uddd1\u200d\ud83c\udfeb", "admin": "\ud83e\uddd1\u200d\ud83d\udcbc", "": "\ud83e\udd37"},
         access: {"write": "admin", "read": "peer"},
     },
     {
@@ -1771,6 +1783,7 @@ export const FullUser_columns = [
     {
         name: "is_admin",
         type: "bool",
+        hide: true,
         icons: {"true": "\ud83e\uddd1\u200d\ud83d\udcbb", "": " "},
     },
     {
@@ -1785,7 +1798,7 @@ export const FullUser_columns = [
     {
         name: "role",
         type: "str",
-        icons: {"student": "\ud83e\uddd1\u200d\ud83c\udf93", "admin": "\ud83e\uddd1\u200d\ud83d\udcbc", "": "\ud83e\uddd1\u200d\ud83c\udfeb"},
+        icons: {"student": "\ud83e\uddd1\u200d\ud83c\udf93", "ta": "\ud83e\uddd1\u200d\ud83d\udcbb", "teacher": "\ud83e\uddd1\u200d\ud83c\udfeb", "admin": "\ud83e\uddd1\u200d\ud83d\udcbc", "": "\ud83e\udd37"},
         access: {"write": "admin", "read": "peer"},
     },
     {

@@ -29,17 +29,23 @@
                 <borb-command name="projects" data-bind="f15" data-icon="🚧" data-text="Projects"></borb-command>
 
                 <div id="page-home">
-                    <borb-button id="f14" data-shortcut="shift+ctrl+14" class="row1"></borb-button>
-                    <borb-button id="f15" data-shortcut="shift+ctrl+15" class="row1"></borb-button>
+                    <img class="logo" src="assets/puffin_red.png" style="height: 1.75rem">
+                    <span class="logo">Puffin<sup>v2</sup></span>
+                    <!--borb-button id="f14" data-shortcut="shift+ctrl+14" class="row1"></borb-button>
+                    <borb-button id="f15" data-shortcut="shift+ctrl+15" class="row1"></borb-button-->
 
                 </div>
                 <div id="course-info"></div>
                 <div id="user-info"></div>
             </header>
-            <p id="display"></p>
             <div id="mid">
-                <borb-frame id="frame1">
-                    <div id="controls" frame-title="Debugger">
+                <!-- borb-frame id="frame1">
+                </borb-frame -->
+                <borb-frame id="frame2">
+                    <p id="display"></p>
+                </borb-frame>
+                <borb-frame id="frame3">
+                    <div id="debugger" hidden="true" frame-title="Debugger">
                         <label for="id">API endpoint:</label>
                         <input type="text" id="id" name="id" placeholder="/courses/" autofocus="true">
                         <label for="data">Data:</label>
@@ -52,12 +58,8 @@
                             <button type="button" id="patch">PATCH</button>
                         </div>
                     </div>
-                </borb-frame>
-                <borb-frame id="frame2">
-                </borb-frame>
-                <borb-frame id="frame3" style="height:100%">
-                    <borb-sheet frame-title="Results" id="resultElt" class="sheet"></borb-sheet>
-                    <div frame-title="Debug Log" id="output" class="log">
+                    <borb-sheet hidden="true" frame-title="Results" id="resultElt" class="sheet"></borb-sheet>
+                    <div hidden="true" frame-title="Debug Log" id="output" class="log">
                         <h1>Debug Log</h1>
                     </div>
                     <div id="anchor"></div>

@@ -1,4 +1,5 @@
 @use "sass:color";
+@import "fonts.scss";
 
 * {
     box-sizing: border-box;
@@ -43,12 +44,53 @@ $color-dark: #3D3D3D;
     --frame-tab-focused-selected: #{color.scale($color-2, $lightness:+60%)};
 }
 
+@mixin pixel-font {
+    font-family: "PressStart2P Narrow", "Fantasque Sans Mono", "Monoid", monospace;
+    // font-size-adjust: .71428;
+}
+
+@mixin hires-font {
+    //font-family: "Glasstown-NBP", sans-serif;
+    //font-family: "Fantasque Sans Mono", "Monoid", monospace;
+    //      font-size-adjust: 0.66; 
+    //letter-spacing: -0.06em;
+}
+
+@mixin normal-font {
+    font-family: "Andika", serif;
+}
+
+@mixin mono-font {
+    font-family: "Fantasque Sans Mono", "Monoid", monospace;
+    //font-size-adjust: .6;
+}
+
+@mixin tiny-font {
+    font-family: "TeenyTinyPixls", sans-serif;
+}
+
 body {
     background-color: var(--color-light);
     background-image: radial-gradient(#fff3 0%, #0003 100%);
     background-attachment: fixed;
     margin: 0;
+}
 
+body,
+button,
+input,
+select,
+option,
+span.no-retro {
+    @include normal-font;
+}
+
+body.retro,
+body.retro button,
+body.retro input,
+body.retro select,
+body.retro option {
+    @include pixel-font;
 }
 
 #page {
@@ -77,7 +119,7 @@ h1 {
     font-weight: normal;
 }
 
-#controls {
+#debugger {
     display: grid;
     grid-template-columns: max-content 1fr;
     grid-template-rows: max-content 1fr max-content;
@@ -125,15 +167,26 @@ button {
         border: .125rem outset var(--color-2);
         border-radius: .25rem;
     }
+
+    &:disabled {
+        border-style: solid;
+        /*border-color: var(--color-light);
+        background-color: var(--color-light);
+*/
+    }
 }
 
-button:hover,
-button:active {
+button:hover:not(:disabled),
+button:active:not(:disabled) {
     border-color: var(--color-1);
     background-color: var(--color-1-light);
 }
 
-button:active {
+button:hover:disabled {
+    border-color: var(--color-2-light);
+}
+
+button:active:not(:disabled) {
     border-style: inset;
 }
 
@@ -143,6 +196,21 @@ button.running {
     cursor: wait;
 }
 
+a:link.external,
+a:link[target="_blank"] {
+    position: relative;
+}
+
+a:link.external::after,
+a:link[target="_blank"]::after {
+    background-image: url(../assets/arrow-up-right-square.svg);
+    background-size: 50%;
+    background-repeat: no-repeat;
+    content: "  ";
+    width: 1em;
+    height: 1em;
+    position: absolute;
+}
 
 #output {
     background: #eee;
@@ -171,7 +239,6 @@ button.running {
     font-size: smaller;
     font-style: italic;
     color: #666;
-    max-height: 4em;
     overflow-y: auto;
 
     li {
@@ -245,6 +312,22 @@ borb-frame>* {
     height: 100%;
     background: #eed;
     overflow: auto;
+
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+        padding-top: 0em;
+        margin-top: .25em;
+        margin-bottom: .25em;
+    }
+
+    p {
+        margin-block-start: .25em;
+        margin-block-end: .25em;
+    }
 }
 
 borb-sheet {
@@ -272,7 +355,7 @@ borb-sheet {
         background: #f8ffff
     }
 
-    tbody tr:not(:first-child):hover {
+    tbody tr:hover {
         background: #ccffaa
     }
 
@@ -322,12 +405,12 @@ borb-sheet {
 
 form,
 .form {
-    display: flex; // !important;
+    /*  display: flex; // !important;
     flex-direction: column;
     flex-wrap: wrap;
     justify-content: start;
     align-items: stretch;
-    gap: .25rem .75rem;
+    gap: .25rem .75rem;*/
     font-size: 1rem;
 
     input,
@@ -374,7 +457,7 @@ form,
     }
 
     .form-control button:disabled {
-        display: none;
+        //   display: none;
     }
 
     button {
@@ -420,26 +503,52 @@ form,
 header {
     display: flex;
     flex-direction: row;
-    justify-content: space-between;
+    justify-content: stretch;
     background: var(--color-light);
-    padding: .25rem;
+    min-height: 2.25rem;
+    //padding: .25rem;
+
+    div {
+        padding: 0.05rem .25rem;
+    }
 
     #page-home {
         text-align: left;
         background: var(--color-1);
         min-width: 33%;
+        flex-grow: 1;
+
+        span.logo {
+            @include pixel-font;
+            font-style: italic;
+            margin-right: 2rem;
+        }
+
+        display: flex;
+        flex-direction: row;
+        justify-content: normal;
+        align-items: center;
     }
 
     #course-info {
         text-align: center;
         background: var(--color-2);
         min-width: 33%;
+            
+        * {
+            vertical-align: middle;
+        }
     }
 
     #user-info {
+        flex-grow: 1;
         text-align: right;
         background: var(--color-3);
         min-width: 33%;
+        
+        * {
+            vertical-align: middle;
+        }
     }
 
     #user-info .is-admin::before {
@@ -452,15 +561,18 @@ header {
 
     #user-info .account-status {
         display: none;
-        & > [data-account] {
+
+        &>[data-account] {
             display: inline;
+
             &[data-is-active]::before {
-            content: attr(data-account-short);
+                content: attr(data-account-short);
             }
         }
-        
-        &:hover > [data-account] {
+
+        &:hover>[data-account] {
             display: block;
+
             &::before {
                 content: "❌"
             }
@@ -484,7 +596,8 @@ header {
     .flash {
         background: white;
     }
+
     .flash.error {
         background: red;
-    } 
+    }
 }

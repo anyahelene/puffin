@@ -267,10 +267,12 @@ class _courses {
     }
 
     refresh(setView = false, select = false) {
+        console.error("set_course_view")
         const course = Course.current;
         if (course) {
             CourseView.edit_course(course, false, select);
             const group_table = to_table({ _type: 'Group[]', data: course.groups });
+            const team_table = to_table({ _type: 'Team[]', data: course.groups.filter(g => g.kind === 'team')});
             const user_table = to_table({
                 _type: 'FullUser[]',
                 data: course.users,
@@ -288,7 +290,13 @@ class _courses {
                 .title('Groups')
                 .done();
             group_panel.replaceChildren(...group_table);
-            if(setView)
+            const team_panel = new BorbPanelBuilder()
+                .frame('frame3')
+                .panel('borb-sheet', 'course_teams')
+                .title('Teams')
+                .done();
+            team_panel.replaceChildren(...team_table);
+                        if(setView)
                 puffin.currentView = this;
         }
     }
@@ -299,7 +307,10 @@ class _courses {
         const change_course = async (ev: MouseEvent, elt: HTMLSelectElement) => {
             if (elt.value) {
                 const course = Course.courses[parseInt(elt.value)];
-                if (course) await course.setActive(true);
+                if (course) {
+                    await course.setActive(true);
+                    CourseView.refresh(true,true);
+                }
             }
         };
 
