@@ -28,6 +28,7 @@ ROLES = {
     'admin': 'Anyone enrolled as teacher or admin in the same course',
     'member': 'Anyone enrolled in current course/group'
 }
+PRIVILEGED_ROLES = ['ta','teacher','admin']
 ROLE_ICONS = {'student': '🧑‍🎓', 'ta':'🧑‍💻', 'teacher': '🧑‍🏫', 'admin': '🧑‍💼', '': '🤷'}
 ACCESS = {
     'read': 'Can read data unless secret',
@@ -47,6 +48,7 @@ class JoinModel(enum.Enum):
     OPEN = "Open – users can join/leave freely"
     AUTO = "Auto – users are automatically added to this group"
     CLOSED = "Closed – group owner must add users"
+    REMOVED = "Removed – user was manually removed from group"
 
 
 class AssignmentModel(enum.Enum):
@@ -287,7 +289,7 @@ class User(Base):
         ms = []
         for m in self.memberships:
             if (course == None or m.group.course == course or m.group.course_id == course or m.group.course.name == course) \
-                    and (kind == None or m.group.kind == kind):
+                    and (kind == None or m.group.kind == kind) and m.join_model != JoinModel.REMOVED:
                 ms.append(m)
         return ms
 

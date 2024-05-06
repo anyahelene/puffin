@@ -351,7 +351,7 @@ export class _Group {
     external_id? : string;
     name : string;
     slug : string;
-    join_model : 'RESTRICTED'|'OPEN'|'AUTO'|'CLOSED';
+    join_model : 'RESTRICTED'|'OPEN'|'AUTO'|'CLOSED'|'REMOVED';
     join_source? : string;
     json_data : Record<string,any> = {};
     constructor(jsonData:Record<string,any>, revision=0) {
@@ -461,7 +461,7 @@ export class _Membership {
     user_id : number;
     group_id : number;
     role : string;
-    join_model : 'RESTRICTED'|'OPEN'|'AUTO'|'CLOSED';
+    join_model : 'RESTRICTED'|'OPEN'|'AUTO'|'CLOSED'|'REMOVED';
     constructor(jsonData:Record<string,any>, revision=0) {
         this.id = jsonData.id;
         this.user_id = jsonData.user_id;
@@ -1845,3 +1845,5 @@ export const FullUser_columns = [
     },
 ]
 tables["FullUser"] = FullUser_columns;
+
+export const PRIVILEGED_ROLES = ['ta', 'teacher', 'admin']

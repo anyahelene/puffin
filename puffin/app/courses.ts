@@ -267,7 +267,6 @@ class _courses {
     }
 
     refresh(setView = false, select = false) {
-        console.error("set_course_view")
         const course = Course.current;
         if (course) {
             CourseView.edit_course(course, false, select);

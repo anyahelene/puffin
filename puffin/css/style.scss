@@ -68,7 +68,18 @@ $color-dark: #3D3D3D;
 @mixin tiny-font {
     font-family: "TeenyTinyPixls", sans-serif;
 }
+/*
+@media (prefers-reduced-motion: no-preference) {
 
+    *,
+    ::before,
+    ::after {
+        animation-duration: 0.001s !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001s !important;
+    }
+}
+*/
 body {
     background-color: var(--color-light);
     background-image: radial-gradient(#fff3 0%, #0003 100%);
@@ -307,6 +318,28 @@ th[data-type=float] {
     text-align: right;
 }
 
+.login-page {
+    margin: 1rem;
+}
+
+.login-form {
+    max-width: 30em;
+    min-width: 20em;
+    margin: 1rem auto;
+    padding: .5rem;
+    border: .25rem outset var(--frame-border-focused);
+    background-color: var(--color-light);
+    text-align: center;
+    height: auto;
+
+    button {
+        margin: .5rem auto;
+        display: block;
+        font-size: larger;
+        width: 100%;
+    }
+}
+
 borb-frame>* {
     width: 100%;
     height: 100%;
@@ -456,9 +489,9 @@ form,
         flex-shrink: 1;
     }
 
-    .form-control button:disabled {
-        //   display: none;
-    }
+    //  .form-control button:disabled {
+    //   display: none;
+    //  }
 
     button {
         position: relative;
@@ -534,7 +567,7 @@ header {
         text-align: center;
         background: var(--color-2);
         min-width: 33%;
-            
+
         * {
             vertical-align: middle;
         }
@@ -545,7 +578,7 @@ header {
         text-align: right;
         background: var(--color-3);
         min-width: 33%;
-        
+
         * {
             vertical-align: middle;
         }
@@ -592,12 +625,100 @@ header {
 
 .flashes {
     position: absolute;
+    display: flex;
+    flex-direction: column;
+    //border: 1px solid black;
+    z-index: 999;
+    right: 0%;
+    margin: 1rem;
+    padding: .25rem;
+    overflow: clip;
+    opacity: 70%;
 
-    .flash {
-        background: white;
+    &:hover {
+        opacity: 100%;
     }
 
-    .flash.error {
-        background: red;
+    // TODO: 
+    .flash {
+        margin: .25rem;
+        transform-origin: top;
+        transition-duration: 1s;
+        transition-delay: 0s;
+        transition-timing-function: ease-in;
+        transition-property: all;
+        display: flow-root;
+        overflow: hidden;
+        padding: 0;
+        position: relative;
+        min-width: 30em;
+        max-height: auto;
+        width: auto;
+
+
+        /*    &:hover,
+        &.new {
+            transition: none;
+            opacity: 100%;
+        }*/
+
+        right: 0%;
+
+        .flash-inner {
+            transition: 1s all;
+            background: white;
+            border: .25rem solid white;
+            border-radius: .5rem;
+            padding: .5rem;
+            //  position:absolute;
+            //  margin: -.5rem;
+
+
+        }
+
+        &.message .flash-inner {
+            border-color: #{color.scale(green, $lightness:10%)};
+            background-color: #{color.scale(green, $lightness:95%)}
+        }
+
+        &.warning .flash-inner {
+            border-style: dotted;
+            border-color: #{color.scale(orange, $lightness:10%)};
+            background-color: #{color.scale(orange, $lightness:95%)}
+        }
+
+        &.error .flash-inner {
+            border-style: dashed;
+            border-color: #{color.scale(red, $lightness:10%)};
+            background-color: #{color.scale(red, $lightness:95%)}
+        }
+        &.remove {
+            opacity: 0%;
+            z-index: 998;
+        }
+        @media(prefers-reduced-motion: no-preference) {
+            &.remove {
+                &:not(:last-child) {
+                    max-height: 0 !important;
+                }
+
+                right: -100%;
+                margin-top: 0;
+                margin-bottom: 0;
+            }
+
+        }
+    }
+}
+
+.flashes.left {
+    left: 0%;
+
+    .flash {
+        left: 0%;
+    }
+
+    .flash.remove {
+        left: -100%;
     }
 }

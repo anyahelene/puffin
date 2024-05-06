@@ -1,48 +1,44 @@
-import {
-    MDRender,
-    SubSystem,
-    Borb,
-    Buttons,
-    Frames,
-    Settings,
-    Sheet,
-    History,
-    Terminals,
-} from '../borb';
-import { BorbFrame, BorbPanelBuilder } from '../borb/Frames';
 import nearley from 'nearley';
+import { Settings } from '../borb/Settings'
+import { SubSystem } from '../borb/SubSystem'
+import { BorbFrame, BorbPanelBuilder } from '../borb/Frames';
 import grammar from '../qlang/qlang.ne';
 
-import { TilingWM, TilingWindow } from '../borb/TilingWM';
+import slugify from 'slugify';
 import { html, render } from 'uhtml';
-//import defaultConfig from './config.json';
-const defaultConfig = {};
+import { TilingWM, TilingWindow } from '../borb/TilingWM';
+import '../borb/css/buttons.scss';
+import '../borb/css/common.scss';
+import '../borb/css/editor.scss';
+import '../borb/css/frames.scss';
+import '../borb/css/markdown.scss';
+import '../borb/css/sheet.scss';
+import '../borb/css/terminal.scss';
+import '../css/style.scss';
+import { add_assignment_form, edit_assignment_form } from './assignments';
+import { CourseView } from './courses';
+import { pick_project_form } from './gitlab';
+import { Course, SelfUser, User, tables } from './model';
 import {
-    puffin,
-    csrf_token,
+    create_team_from_project_url,
     display_panel,
-    login_panel,
-    request,
-    to_table,
-    updateToken,
     get_gitlab_group,
     get_gitlab_project,
-    create_team_from_project_url,
     gitlab_url,
+    login_panel,
+    puffin,
+    request,
+    to_table
 } from './puffin';
-import { Course, SelfUser, tables } from './model';
-import { CourseView } from './courses';
-import { add_assignment_form, edit_assignment_form } from './assignments';
-import { pick_project_form } from './gitlab';
 import { add_many_teams_form, add_team_form } from './teams';
-import moo from 'moo';
-import slugify from 'slugify';
+import { activate_flashes, show_flash } from './flashes';
+//import defaultConfig from './config.json';
+const defaultConfig = {};
 slugify.extend({ '+': '-' });
 puffin.tables = tables;
 puffin.Course = Course;
 puffin.CourseView = CourseView;
 puffin.SubSystem = SubSystem;
-puffin.Borb = Borb;
 puffin.add_assignment_form = add_assignment_form;
 puffin.edit_assignment_form = edit_assignment_form;
 puffin.get_gitlab_group = get_gitlab_group;
@@ -138,21 +134,23 @@ puffin.nearley = nearley;
 puffin.grammar = grammar;
 puffin.parser = new nearley.Parser(nearley.Grammar.fromCompiled(grammar));
 puffin.request = request;
+puffin.show_flash = show_flash;
 let reqId = 0;
-const resultElt = document.getElementById('resultElt');
-const anchor = document.getElementById('anchor');
-const idField = document.getElementById('id') as HTMLInputElement;
-const dataField = document.getElementById('data') as HTMLInputElement;
-const submitBtn = document.getElementById('submit');
 
 async function submit(method: string) {
-    const endpoint = idField.value;
-    const requestBody = dataField.value ? JSON.parse(dataField.value) : undefined;
+    const endpoint = (document.getElementById('id') as HTMLInputElement).value;
+    const value = (document.getElementById('data') as HTMLInputElement).value
+    const requestBody = value ? JSON.parse(value) : undefined;
     console.log('submit', endpoint, requestBody);
     const result = await request(endpoint, method, requestBody);
     console.log('result', result);
-    resultElt.replaceChildren(...to_table(result));
+    document.getElementById('resultElt').replaceChildren(...to_table(result));
 }
+document.getElementById('id')?.addEventListener('keydown', enterPressed);
+document.getElementById('get')?.addEventListener('click', (e) => submit('GET'));
+document.getElementById('put')?.addEventListener('click', (e) => submit('PUT'));
+document.getElementById('post')?.addEventListener('click', (e) => submit('POST'));
+document.getElementById('patch')?.addEventListener('click', (e) => submit('PATCH'));
 
 interface Group {
     group_id: number;
@@ -168,28 +166,11 @@ function enterPressed(ev: KeyboardEvent) {
         submit('GET');
     }
 }
-idField.addEventListener('keydown', enterPressed);
-document.getElementById('get').addEventListener('click', (e) => submit('GET'));
-document.getElementById('put').addEventListener('click', (e) => submit('PUT'));
-document.getElementById('post').addEventListener('click', (e) => submit('POST'));
-document.getElementById('patch').addEventListener('click', (e) => submit('PATCH'));
 
 SubSystem.waitFor('dom').then(() => {
-    if (window.location.search) {
-        const usp = new URLSearchParams(window.location.search);
-        if (usp.has('course')) {
-            Course.setActiveCourse(parseInt(usp.get('course'))).then(() =>
-                CourseView.set_course_view(),
-            );
-        }
-    }
+    activate_flashes();
 
-    request('users/self', 'GET', undefined, false, true).then(async (self: SelfUser) => {
-        if (self?.login_required) {
-            const path = window.location.pathname.replace(/[^/]*$/, '');
-            window.location.replace(`${path}login/gitlab?next=${window.location.pathname}`);
-            return;
-        }
+    request('users/self/', 'GET', undefined, false, true).then(async (self: SelfUser) => {
         puffin.self = self;
         Course.current_user = self;
         const user_info = document.getElementById('user-info');
@@ -198,7 +179,7 @@ SubSystem.waitFor('dom').then(() => {
                 user_info,
                 html`
                     <span class="name" title=${self.course_user?.role || ''}
-                        >${self.firstname} ${self.lastname}</span
+                        >${self.firstname} ${self.lastname} (${self.course_user?.role || (self.is_admin ? 'admin' : 'user')})</span
                     >
                     <ul class="account-status">
                         <li
@@ -230,11 +211,20 @@ SubSystem.waitFor('dom').then(() => {
         };
         await Course.updateCourses();
         try {
-            await Course.setActiveCourse(45714);
+            const usp = new URLSearchParams(window.location.search);
+            if (usp.has('course')) {
+                await Course.setActiveCourse(parseInt(usp.get('course')))
+            }
+            let course = Course.courses[45714] || Course.courses.filter(() => true)[0];
+            if (course) {
+                await course.setActive();
+            } else {
+                show_flash('No courses found!');
+            }
         } catch (e) {
             console.error('Failed to set active course', e);
         }
-        if (self.is_admin) {
+        if (self.is_admin || Course.current_user.course_user?.is_privileged) {
             puffin.debug['console'] = true;
             document
                 .querySelectorAll('#frame3 [hidden=true]')
@@ -242,51 +232,44 @@ SubSystem.waitFor('dom').then(() => {
             (document.querySelector('#frame3') as BorbFrame).queueUpdate(true);
             CourseView.set_course_view();
         } else {
-            const user = Course.current.usersById[self.id];
-            const team = user.team[0];
-            console.log('non-admin user: ', user, team);
             const debug = puffin.debug['console'] ? html`<div><button type="button" onclick=${() => console.log(this)}>Debug</button></div>` : '';
             const user_panel = new BorbPanelBuilder()
                 .frame('frame2')
                 .panel('div', 'user_panel')
-                .title(`${user.firstname} ${user.lastname}`)
+                .title(`${self.firstname} ${self.lastname}`)
                 .select()
                 .done();
-            render(
-                user_panel,
-                html`<h2>${user.firstname} ${user.lastname}</h2>
+            const user = Course.current?.usersById[self.id];
+            const team = user?.team[0];
+            if (user && team) {
+                render(
+                    user_panel,
+                    html`<h2>${user.firstname} ${user.lastname}</h2>
                  <b>Team:</b><a href="${gitlab_url(team.json_data.project_path)}" target="_blank"
                   > ${team.json_data.project_name} – [${team.json_data.project_path}]</a>
                   ${debug}`,
-            );
-            const team_panel = new BorbPanelBuilder()
-                .frame('frame3')
-                .panel('div', 'team_panel')
-                .title(team.name)
-                .select()
-                .done();
-            team.display(team_panel);
+                );
+                const team_panel = new BorbPanelBuilder()
+                    .frame('frame3')
+                    .panel('div', 'team_panel')
+                    .title(team.name)
+                    .select()
+                    .done();
+                team.display(team_panel);
+            }
         }
     });
 
     const retro = (ev) => {
-        document.querySelector('body').classList.toggle('retro');
+        document.querySelector('body').classList.toggle('retro', (ev.target as HTMLInputElement).checked);
     };
     document
         .querySelector('#page-home')
         .appendChild(
-            html.node`<input id="retro" onchange=${retro} type="checkbox" /><label for="retro">Go 8-bit</label>`,
+            html.node`<input id="retro" onchange=${retro} ?checked=${document.querySelector('body').classList.contains('retro')} type="checkbox" /><label for="retro">Go 8-bit</label>`,
         );
+
 });
-import '../borb/css/frames.scss';
-import '../borb/css/buttons.scss';
-import '../borb/css/common.scss';
-import '../borb/css/markdown.scss';
-import '../borb/css/terminal.scss';
-import '../borb/css/editor.scss';
-import '../borb/css/sheet.scss';
-import '../css/style.scss';
-import { pick } from 'lodash-es';
 //import styles from '../css/common.scss';
 //console.log(styles)
 

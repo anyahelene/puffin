@@ -5,19 +5,20 @@ import {
     _User,
     _Group,
     _Membership,
-    tables as _tables,
     _Assignment,
     Course_columns,
     Assignment_columns,
     _Account,
     _Project,
     _CourseUser,
+    tables,
+    PRIVILEGED_ROLES,
 } from './model_gen';
-import { request, puffin, to_table, gitlab_url, handle_internal_link } from './puffin';
+export {tables} from './model_gen';
+import { request, puffin, to_table, gitlab_url, handle_internal_link, user_emails } from './puffin';
 import { CourseView } from './courses';
 import { BorbPanelBuilder } from '../borb/Frames';
 
-export const tables = _tables;
 export type Membership = _Membership;
 export class Group extends _Group {
     _original: _Group;
@@ -31,6 +32,10 @@ export class Group extends _Group {
     as_link(link_text : string = undefined) {
         link_text = link_text ? link_text : this.slug;
         return html`<a data-type="group" data-target=${this.id} onclick=${handle_internal_link} href=${`group://${this.id}`}>${link_text}</a>`;
+    }
+
+    get users() : User[] {
+        return this.members.map(m => this.course.usersById[m.user_id])
     }
 
     display(panel : HTMLElement = undefined) {
@@ -56,6 +61,7 @@ export class Group extends _Group {
                     : html`<h2>Group/${this.kind} ${this.name}`}
                 <div><borb-sheet>${table1}</borb-sheet></div>
                 ${this.join_source ? html`<p>(members imported from ${this.join_source})</p>` : ''}
+                <div><b>Email:</b> ${user_emails(this.users)}</div>
                 <div><borb-sheet>${children_table}</borb-sheet></div>
                 ${debug}
             `,
@@ -99,10 +105,10 @@ export const Team_columns = [
         type: "custom",
         mapping: (field, obj, spec) => html.node`<a href="${gitlab_url(obj.json_data.project_path)}" target="_blank">${obj.json_data.project_name}</a>`
     },
-    {
+/*    {
         name: "json_data",
         type: "dict",
-    },
+    },*/
 ]
 tables["Team"] = Team_columns;
 
@@ -194,12 +200,15 @@ export class User extends _FullUser {
         link_text = link_text ? link_text : `${this.firstname} ${this.lastname}`;
         return html`<a data-type="user" data-target=${this.id} onclick=${handle_internal_link} href=${`group://${this.id}`}>${link_text}</a>`;
     }
+    get is_privileged() {
+        return PRIVILEGED_ROLES.indexOf(this.role) != -1;
+    }
 }
 export class SelfUser extends _User {
     gitlab_account?: _Account;
     canvas_account?: _Account;
     discord_account?: _Account;
-    course_user?: _CourseUser;
+    course_user?: User;
     on_update?: () => void;
     login_required?: true;
 }
@@ -314,9 +323,9 @@ export class Course extends _Course {
     }
     async setActive(update = true): Promise<Course> {
         Course.current = this;
+        if (update) await this.updateCourse();
         Course.current_user.course_user = this.currentUser();
         Course.current_user?.on_update();
-        if (update) await this.updateCourse();
         CourseView.update_course_list();
         //CourseView.refresh(true, false);
 
@@ -338,7 +347,7 @@ export class Course extends _Course {
         return this;
     }
     async updateUsers(): Promise<User[]> {
-        const us: _User[] = await request(`courses/${this.external_id}/users?accounts=true`);
+        const us: _User[] = await request(`courses/${this.external_id}/users/?accounts=true`);
         this.users = [];
         us.forEach((u) => {
             const user = this.usersById[u.id] || new User(u);
@@ -350,7 +359,7 @@ export class Course extends _Course {
         return this.users;
     }
     async updateGroups(): Promise<Group[]> {
-        const gs: _Group[] = await request(`courses/${this.external_id}/groups`);
+        const gs: _Group[] = await request(`courses/${this.external_id}/groups/`);
         this.groups = [];
         this.groupsBySlug.clear();
         gs.forEach((g) => {
@@ -364,7 +373,7 @@ export class Course extends _Course {
         return this.groups;
     }
     async updateMemberships() {
-        const members = (await request(`courses/${this.external_id}/memberships`)) as Membership[];
+        const members = (await request(`courses/${this.external_id}/memberships/`)) as Membership[];
         console.log('groups', this.groups, 'members', members);
         this.groups.forEach((g) => (g.members = []));
         this.users.forEach((u) => (u.groups = []));

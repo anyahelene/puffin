@@ -16,6 +16,7 @@ from puffin.db.model_tables import (
     Course,
     Group,
     Membership,
+    PRIVILEGED_ROLES
 )
 from puffin.db.model_views import CourseUser, UserAccount
 from puffin.db.model_util import (
@@ -29,6 +30,7 @@ from puffin.db.model_util import (
 from puffin.db.database import db_session as db
 from sqlalchemy import alias, and_, or_, select, column
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import aliased
 from simpleeval import simple_eval
 from puffin.gitlab.users import GitlabConnection
 from .errors import ErrorResponse
@@ -95,7 +97,7 @@ def get_group(course, group_id_or_slug):
     else:
         return db.execute(
             select(Group).where(
-                where, Membership.group_id == Group.id, Membership.user_id == current_user.id
+                where, Membership.group_id == Group.id, Membership.join_model != JoinModel.REMOVED, Membership.user_id == current_user.id
             )
         ).scalar_one_or_none()
 
@@ -115,7 +117,7 @@ def is_privileged(user, course):
     en = current_user.enrollment(course)
     if not en:
         return False
-    return en.role in ["admin", "ta", "teacher"]
+    return en.role in PRIVILEGED_ROLES
 
 
 @bp.get("/")
@@ -295,7 +297,7 @@ def course_users(course_spec):
     if not is_privileged(current_user, course):
         team = db.execute(select(Group).where(Group.course_id == course.id, Membership.group_id == Group.id, Membership.user_id == current_user.id), Group.kind == 'team').scalars().first()
         if team:
-            where = [Membership.group_id == team.id, Membership.user_id == CourseUser.id]
+            where = [Membership.group_id == team.id, Membership.user_id == CourseUser.id, Membership.join_model != JoinModel.REMOVED]
         else:
             where = [CourseUser.id == current_user.id]
     
@@ -304,15 +306,14 @@ def course_users(course_spec):
         where = []
 
     result = []
-    print("accounts: ", request.args.get("accounts", False) or request.form.get("accounts", False))
     if request.args.get("accounts", False) or request.form.get("accounts", False):
         users = db.execute(
             select(CourseUser, UserAccount)
             .where(CourseUser.course_id == course.id, CourseUser.id == UserAccount.id, *where)
             .order_by((CourseUser.role == "student").desc(), CourseUser.lastname)
         ).all()
+        logger.info("users: found %s records", len(users))
         for u, a in users:
-            print(u)
             u = u.to_json()
             u.update(a.to_json())
             u["_type"] = "course_user,user_account"
@@ -327,6 +328,7 @@ def course_users(course_spec):
             .scalars()
             .all()
         )
+        logger.info("users: found %s records", len(users))
         result = [u.to_json() for u in users]
     return result
 
@@ -379,7 +381,7 @@ def course_user(course_spec, user_id):
 def get_course_groups(course_spec):
     course = get_course_or_fail(course_spec)
     if not is_privileged(current_user, course):
-        where = [Membership.group_id == Group.id, Membership.user_id == current_user.id]
+        where = [Membership.group_id == Group.id, Membership.user_id == current_user.id, Membership.join_model != JoinModel.REMOVED]
     else:
         where = []
 
@@ -390,6 +392,7 @@ def get_course_groups(course_spec):
         .scalars()
         .all()
     )
+    logger.info("groups: found %s records", len(groups))
 
     return [g.to_json() for g in groups]
 
@@ -399,10 +402,10 @@ def get_course_groups(course_spec):
 def get_course_memberships(course_spec):
     course = get_course_or_fail(course_spec)
     if not is_privileged(current_user, course):
-        membership_alias = Membership.__table__.alias()
-        where = [Membership.group_id == membership_alias.c.group_id, membership_alias.c.user_id == current_user.id]
+        membership_alias = aliased(Membership)
+        where = [Membership.group_id == membership_alias.group_id, membership_alias.user_id == current_user.id, Membership.join_model != JoinModel.REMOVED]
     else:
-        where = []
+        where = [Membership.join_model != JoinModel.REMOVED]
     members = (
         db.execute(
             select(Membership).where(
@@ -413,6 +416,8 @@ def get_course_memberships(course_spec):
         .scalars()
         .all()
     )
+    logger.info("memberships: found %s records", len(members))
+
     return [m.to_json() for m in members]
 
 
@@ -424,7 +429,7 @@ def get_course_memberships(course_spec):
 def get_course_teams(course_spec):
     course = get_course_or_fail(course_spec)
     if not is_privileged(current_user, course):
-        where = [Membership.group_id == Group.id, Membership.user_id == current_user.id]
+        where = [Membership.group_id == Group.id, Membership.user_id == current_user.id, Membership.join_model != JoinModel.REMOVED]
     else:
         where = []
 
@@ -437,6 +442,7 @@ def get_course_teams(course_spec):
         .scalars()
         .all()
     )
+    logger.info("teams: found %s records", len(teams))
 
     return [g.to_json() for g in groups]
 
@@ -623,14 +629,15 @@ def course_group_users(course_spec, group_spec):
     group = get_group_or_fail(course, group_spec)
 
     if request.args.get("details", "false") == "true" and is_privileged(current_user, course):
-        result = []
         for m in group.memberships:
-            u = m.user.to_json()
-            u["role"] = m.role
-            result.append(u)
-        return result
+            if m.join_model != JoinModel.REMOVED:
+                u = m.user.to_json()
+                u["role"] = m.role
+                result.append(u)
     else:
-        return [m.to_json() for m in group.memberships]
+        result = [m.to_json() for m in group.memberships if m.join_model != JoinModel.REMOVED]
+    logger.info("group users: found %s records", len(result))
+    return result
 
 
 @bp.post("/<course_spec>/groups/<group_spec>/sync")

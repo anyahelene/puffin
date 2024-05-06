@@ -1,11 +1,11 @@
+import { html } from 'uhtml';
 import { BorbPanelBuilder } from '../borb/Frames';
-import { Hole, html } from 'uhtml';
-import { Course, Group, tables, User } from './model';
-import { Borb } from 'puffin/borb';
+import { show_flash } from './flashes';
+import { Course, Group, User, tables } from './model';
 export let csrf_token: string = undefined;
 
 export const puffin: Record<string, object> = {
-    debug: {console:false}
+    debug: { console: false }
 };
 
 export function modify_table(
@@ -32,18 +32,16 @@ tables['FullUser'].push({ name: 'section', type: 'group[]', filter: '' });
 modify_table('FullUser', 'canvas_username', (entry) => {
     entry.mapping = (field, obj, spec) =>
         field
-            ? html.node`<a title=${
-                  obj.canvas_id
-              } class="external" href="${`https://mitt.uib.no/courses/${Course.current.external_id}/users/${obj.canvas_id}`}" target="_blank">${field}</a>`
+            ? html.node`<a title=${obj.canvas_id
+                } class="external" href="${`https://mitt.uib.no/courses/${Course.current.external_id}/users/${obj.canvas_id}`}" target="_blank">${field}</a>`
             : '';
     entry.type = 'custom';
 });
 modify_table('FullUser', 'gitlab_username', (entry) => {
     entry.mapping = (field, obj, spec) =>
         field
-            ? html.node`<a title=${
-                  obj.gitlab_id
-              } class="external" href="${`https://git.app.uib.no/${obj.gitlab_username}/`}" target="_blank">${field}</a>`
+            ? html.node`<a title=${obj.gitlab_id
+                } class="external" href="${`https://git.app.uib.no/${obj.gitlab_username}/`}" target="_blank">${field}</a>`
             : '';
     entry.type = 'custom';
 });
@@ -93,13 +91,14 @@ export async function updateToken() {
 
     throw new Error('Failed to obtain CSRF token');
 }
+
 export async function request(
     endPoint: string,
     method: string = 'GET',
     params: Record<string, object | boolean | number | string> = undefined,
     use_url_params = false,
     allow_error = false,
-) {
+): Promise<any> {
     const has_token = !!csrf_token;
     const tok = csrf_token || (await updateToken());
     let url = new URL(endPoint, document.URL);
@@ -107,6 +106,18 @@ export async function request(
         method,
         headers: { 'X-CSRFToken': tok, Accept: 'application/json' },
     };
+    const get_result = async (res: Response) => {
+        const blob = await res.blob();
+
+        if(blob.type === 'application/json') {
+            return JSON.parse(await blob.text());
+        } else {
+            const result = { status: res.ok ? 'ok' : 'error', data:await blob.text(), status_code:res.status}
+            console.error('hmm... should this be JSON, maybe?', result)
+            return result;
+        }
+
+    }
     if (params) {
         if (method === 'GET' || method === 'HEAD' || use_url_params) {
             const usp = new URLSearchParams();
@@ -121,43 +132,28 @@ export async function request(
             req.headers['Content-Type'] = 'application/json; charset=UTF-8';
         }
     }
-    console.log('fetch', url, req);
     const res = await fetch(url, req);
-    console.log('fetch result', res);
-    if (res.ok) {
-        if (true) {
-            const result = await res.json();
-            log_request(res, JSON.stringify(result, null, 2));
-            if (result.status === 'error' && !allow_error) {
-                console.error('Request failed', result, '\nrequest:', req, '\nresponse:', res);
-                throw new RequestError(res, result.message || 'Unknown error', result);
-            }
-            return result;
-        } else {
-            const textResult = await res.text();
-            console.log('Text result:', textResult);
-            const result = JSON.parse(textResult);
-            console.log('JSON result:', result);
-            log_request(res, JSON.stringify(result, null, 2));
-            return result;
-        }
-    } else {
-        let result = '';
-        try {
-            result = await res.text();
-        } catch (e) {
-            console.error(e);
-            // ignore
-        }
-        if (has_token && result.search(/The CSRF token has expired/) !== -1) {
+    let result: Record<string, any> = await get_result(res);
+    console.log('fetch', url.toString(), req, '\n', res, '\n', result);
+
+    log_request(res, JSON.stringify(result, null, 2));
+    if (result.status === 'error') {
+        if (has_token && result.message.search(/The CSRF token has expired/) !== -1) {
             console.warn('Resetting CSRF token');
             csrf_token = undefined;
             return request(endPoint, method, params);
         }
-        log_request(res, result);
-        console.error('Request failed', result, 'request:', req, 'response:', res);
-        throw new RequestError(res, result);
+        else if (result.login_required && result.login_url) {
+            // TODO: use popup window
+            window.location.replace(result.login_url);
+        }
+        else if (!allow_error) {
+            show_flash(result.message, "error");
+            console.error('Request failed', result, '\nrequest:', req, '\nresponse:', res);
+            throw new RequestError(res, result.message || 'Unknown error', result);
+        }
     }
+    return result;
 }
 
 function element(text: string | number | HTMLElement = '', tag = 'div') {
@@ -192,13 +188,17 @@ function keys(obj) {
     for (let key in obj) keys.push(key);
     return keys;
 }
+export function user_emails(users: User[]) {
+    return users.map(u => `${u.firstname} ${u.lastname} <${u.email}>`).join(', ');
+}
+
 export function handle_internal_link(ev: MouseEvent) {
     if (ev.target instanceof HTMLAnchorElement || ev.target instanceof HTMLButtonElement) {
         ev.preventDefault();
         const target = ev.target.dataset.target;
         switch (ev.target.dataset.type) {
             case 'group':
-                console.log(target, parseInt(target), ev.target);
+                console.log('handle_internal_link', target, parseInt(target), ev.target);
                 const group: Group = Course.current.groupsById[parseInt(target)];
                 group.display();
                 break;
@@ -235,7 +235,7 @@ function display_obj(
     field.forEach((g) => {
         if (spec && spec.filter && g.kind !== spec.filter) return;
         if (result.length > 0) comma = ', ';
-        if(typeof g.as_link === 'function') {
+        if (typeof g.as_link === 'function') {
             result.push(g.as_link())
         }
     });
@@ -301,7 +301,7 @@ export function to_table(
                     hide_columns.includes(c.name)
                 ),
         );
-    console.log(type, more_types, columns);
+    //console.log(type, more_types, columns);
     let allbox: HTMLInputElement = null;
     const checkboxes: HTMLInputElement[] = [];
     const selected: Set<HTMLInputElement> = new Set();
@@ -326,9 +326,8 @@ export function to_table(
         allbox.name = '__all__';
         allbox.addEventListener('change', (ev) => {
             checkboxes.forEach((b) => (b.checked = allbox.checked));
-            allbox.title = `${allbox.checked ? checkboxes.length : 0} of ${
-                checkboxes.length
-            } selected`;
+            allbox.title = `${allbox.checked ? checkboxes.length : 0} of ${checkboxes.length
+                } selected`;
         });
         const elt = cell(allbox, 'th');
         elt.classList.add('center', 'no-sort');
@@ -391,7 +390,6 @@ export function to_table(
                     elt = cell(display_obj(value, 'user', row, spec));
                     break;
                 case 'group.slug':
-                    console.log('group.slug display', row, spec, elt);
                     elt = cell(display_obj(row, 'group', row, spec));
                     break;
                 case 'group[]':

@@ -8,9 +8,9 @@ import sqlalchemy as sa
 from puffin.app.errors import ErrorResponse
 from puffin.db import database
 
-from puffin.db.model_views import CourseUser, FullUser, UserAccount
+from .model_views import CourseUser, FullUser, UserAccount
 
-from .model_tables import Account, AssignmentModel, Course, Group, Id, JoinModel, LogType, User, Membership, Enrollment, LastSync
+from .model_tables import Account, AssignmentModel, Course, Group, Id, JoinModel, LogType, User, Membership, Enrollment, LastSync, PRIVILEGED_ROLES
 logger = logging.getLogger(__name__)
 
 roles = {
@@ -64,10 +64,7 @@ T = TypeVar('T', covariant=True)
 def new_id(session: sa.orm.Session, cls: Type[T]) -> int:
     with session.begin_nested() as ss:
         id = Id(type=cls.__tablename__)
-        print(1, id)
         session.add(id)
-        print(2, id)
-    print(3, id)
     return id.id
 
 
@@ -268,6 +265,7 @@ def to_typeScript(filename: str):
                 '_')]), database._meta.tables[tbl], f)
         for tbl in [CourseUser, UserAccount, FullUser]:
             table_to_ts(tbl.__name__, tbl.__table__, f)
+        f.write(f'\nexport const PRIVILEGED_ROLES = {PRIVILEGED_ROLES}\n')
 
 
 def table_to_ts(name: str, table: sa.Table, f: IO):

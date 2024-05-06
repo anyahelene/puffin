@@ -2,96 +2,62 @@
 <html>
 
 <head>
-    <title>INF226 Tiny Login</title>
-    <link rel="stylesheet" href="highlight.css" />
-    <link rel="icon" href="favicon.png" type="image/png" />
 
-    <style>
-        * {
-            box-sizing: border-box;
-            ;
-        }
-
-        #page {
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            ;
-            padding: .5rem;
-        }
-
-        main {
-            border-top: 1px solid grey;
-            border-bottom: 1px solid grey;
-            /* min-height: 50%; */
-            flex-grow: 1;
-            flex-shrink: 1;
-            overflow: auto;
-        }
-
-        body {
-            margin: 0;
-        }
-
-        label {
-            justify-self: end;
-            ;
-        }
-
-        #controls {
-            /* min-height: 20%; */
-            font-size: 1.4rem;
-            display: grid;
-            grid-template-columns: 1fr 6fr 1fr 1fr;
-            grid-auto-rows: 1.4rem;
-            ;
-            grid-gap: .5rem;
-            max-width: 70rem;
-
-        }
-
-        #output {
-            width: 100%;
-            height: 100%;
-            background: #eee;
-            overflow: auto;
-            margin: 0;
-        }
-
-        #output p {
-            border-bottom: 1px solid grey;
-            padding-bottom: .25rem;
-        }
-
-        #header {
-            display: flex;
-            flex-direction: row;
-            flex-wrap: wrap;
-        }
-
-        #header li {
-            display: block;
-            font-style: italic;
-            font-size: 1.2rem;
-            padding: .25rem;
-            margin: 0 1rem;
-        }
-    </style>
-
+    <title>
+        {{ title }}
+    </title>
+    <link rel="stylesheet" href="../css/style.css" />
+    <link rel="stylesheet" href="../css/sheet.css" />
+    <link rel="icon" href="../assets/puffin_red.svg">
 </head>
 
-<body>
-    <div id="page">
-        <form action="." method=post>
-            <table>
-                {{ form.csrf_token }}
-                {% for field in form %}
-                <tr>
-                    <th>{{ field.label }}</th>
-                    <td>{{ field }}</td>
-                </tr>
-                {% endfor %}
-            </table>
-        </form>
-    </div>
+
+<body class="">
+    <%= htmlWebpackPlugin.tags.bodyTags %>
+        {% with messages = get_flashed_messages(with_categories=True) %}
+        {% if messages %}
+        <ul id="flashes" class="flashes right">
+            {% for category, message in messages %}
+            <li class="flash {{ category }} new"><div class="flash-inner">{{ message }}</div></li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+        {% endwith %}
+        {% block body %}{% endblock %}
+        <div id="page">
+            <header>
+                <div id="page-home">
+                    <img class="logo" src="../assets/puffin_red.svg" style="height: 1.75rem">
+                    <span class="logo">Puffin<sup>v2</sup></span>
+                    <!--borb-button id="f14" data-shortcut="shift+ctrl+14" class="row1"></borb-button>
+                    <borb-button id="f15" data-shortcut="shift+ctrl+15" class="row1"></borb-button-->
+
+                </div>
+                <div id="course-info"></div>
+                <div id="user-info"></div>
+            </header>
+            <div class="login-page">
+                {% if allow_gitlab %}
+                <form class="login-form" action="gitlab" method="get">
+                    <button type="submit">Log in with git.app.uib.no</button>
+                </form>
+                {% endif %}
+                {% if allow_password %}
+                <form class="login-form" action="." method=post>
+                    <table>
+                        {{ form.csrf_token }}
+                        {% for field in [form.username, form.password] %}
+                        <tr>
+                            <th>{{ field.label }}</th>
+                            <td>{{ field }}</td>
+                        </tr>
+                        {% endfor %}
+                    </table>
+                    <button type=submit>Login</button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
 </body>
+
+</html>

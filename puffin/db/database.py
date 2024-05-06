@@ -6,15 +6,18 @@ from typing import Any
 from flask import Flask
 from sqlalchemy import Column, MetaData, Table, create_engine, select, event
 from sqlalchemy.orm import scoped_session, sessionmaker, DeclarativeBase, Query,MappedAsDataclass
-from puffin import settings
 from werkzeug.security import generate_password_hash
 
 from puffin.util.util import DateEncoder
 
-engine = create_engine(settings.DB_URL, echo=False, future=True)
-db_session = scoped_session(sessionmaker(autocommit=False,
-                                         autoflush=False,
-                                         bind=engine))
+db_session : scoped_session = scoped_session(sessionmaker())
+
+def configure(app:Flask):
+    global engine
+    engine = create_engine(app.config['SQLALCHEMY_DATABASE_URI'], echo=False, future=True)
+    db_session.configure(autocommit=False,
+                         autoflush=False,
+                         bind=engine)
 _naming_convention = {
         "ix": "ix_%(column_0_label)s",
         "uq": "uq_%(table_name)s_%(column_0_name)s",
@@ -58,7 +61,7 @@ def init(app:Flask):
 
     _viewmeta.drop_all(engine)
     _viewmeta.create_all(engine)
-    if app and app.config['PUFFIN_SUPER_USER'] and app.config['PUFFIN_SUPER_PASSWORD']:
+    if app and app.config.get('PUFFIN_SUPER_USER') and app.config.get('PUFFIN_SUPER_PASSWORD'):
         super_user, created = model_util.get_or_define(db_session, model_tables.User, {'id':0,'key':'internal#root'},
             {'firstname':'Dr.','lastname':'Superpuff','is_admin':True,'email':app.config['PUFFIN_SUPER_USER']})
         if created:

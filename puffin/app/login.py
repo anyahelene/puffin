@@ -1,7 +1,7 @@
 from datetime import datetime
 from http import HTTPStatus
 from flask import Blueprint, Flask, abort, current_app, flash, g, jsonify, redirect, render_template, request, session, url_for
-from flask_login import LoginManager, current_user, login_required, login_user
+from flask_login import LoginManager, current_user, login_required, login_user, logout_user
 from flask_wtf import CSRFProtect, FlaskForm
 from wtforms import StringField, PasswordField, SubmitField
 from puffin.app.errors import ErrorResponse
@@ -26,49 +26,55 @@ class LoginForm(FlaskForm):
 bp = Blueprint('login', __name__, url_prefix='/login')
 login_manager = LoginManager()
 oauth = OAuth()
+app_config = None
 def init(app:Flask, parent:Blueprint):
     (parent or app).register_blueprint(bp)
     login_manager.init_app(app)
     login_manager.id_attribute = 'get_id'
     login_manager.login_view = "app.login.login"
     oauth.init_app(app)
-    global gitlab_oauth
+    global gitlab_oauth, app_config
+    app_config = app.config
     gitlab_oauth = oauth.register('gitlab',
                                   server_metadata_url=app.config['GITLAB_BASE_URL'] + '.well-known/openid-configuration',
                                   client_kwargs={'scope':'openid profile email'})
-    print("/login init: ", oauth._clients, gitlab_oauth.__dict__)
-    for k,v in gitlab_oauth.__dict__.items():
-        print(k, v)
+    #_logger.debug("/login init: %s\n\t%s", oauth._clients, gitlab_oauth.__dict__)
+
 
 @bp.route('/', methods=['GET', 'POST'])
 def login():
-    form = LoginForm()
-    if form.is_submitted():
-        _logger.info('/login/login[%s]: Received form: %s form_errors=%s errors=%s form=%s', g.log_ref, "invalid" if not form.validate() else "valid", form.form_errors, form.errors, request.form)
-    if form.validate_on_submit():
-        username = form.username.data
-        password = form.password.data
-        u = db_session.execute(select(User).where(User.email==username)).scalar_one_or_none()
+    allow_gitlab = gitlab_oauth != None
+    if app_config.get('LOGIN_ALLOW_PASSWORD', True):
+        form = LoginForm()
+        if form.is_submitted():
+            _logger.info('/login/login[%s]: Received form: %s form_errors=%s errors=%s form=%s', g.log_ref, "invalid" if not form.validate() else "valid", form.form_errors, form.errors, request.form)
+        if form.validate_on_submit():
+            username = form.username.data
+            password = form.password.data
+            u = db_session.execute(select(User).where(User.email==username)).scalar_one_or_none()
 
-        _logger.info('/login/login[%s]: Found user: %s', g.log_ref, u)
-        if u and u.password and check_password_hash(u.password, password):
-            if not u.is_expired:
-                _logger.info('/login/login[%s]: Logged in successfully, redirecting to %s', g.log_ref, url_for('app.index_html'))
-                #session.clear()
-                login_user(u)
-                session['real_user'] = u.id
-                session['login_ref'] = g.log_ref
-                flash('Logged in successfully')
-                return redirect(url_for('app.index_html'))
+            _logger.info('/login/login[%s]: Found user: %s', g.log_ref, u)
+            if u and u.password and check_password_hash(u.password, password):
+                if not u.is_expired:
+                    _logger.info('/login/login[%s]: Logged in successfully, redirecting to %s', g.log_ref, url_for('app.index_html'))
+                    #session.clear()
+                    login_user(u)
+                    session['real_user'] = u.id
+                    session['login_ref'] = g.log_ref
+                    flash('Logged in successfully')
+                    return redirect(url_for('app.index_html'))
+                else:
+                    error = "Account expired – contact administrators"
             else:
-                error = "Account expired – contact administrators"
-        else:
-            error = "Wrong username or password"
+                error = "Wrong username or password"
 
-        _logger.error("/login/login error: %s", error)
-        flash(error + f'(ref: {g.log_ref})')
+            _logger.error("/login/login error: %s", error)
+            flash(error + f'(ref: {g.log_ref})')
 
-    return render_template('./login.html', form=form)
+        return render_template('./login.html', form=form, title=f"Login – {app_config.get('SITE_TITLE', '')}", allow_password=True, allow_gitlab=allow_gitlab)
+    else:
+        return render_template('./login.html', title=f"Login – {app_config.get('SITE_TITLE', '')}", allow_password=False, allow_gitlab=allow_gitlab)
+
 
 
 @bp.route('/gitlab')
@@ -82,7 +88,12 @@ def login_gitlab():
 
 @bp.route('/logout')
 def logout_gitlab():
-    oauth.gitlab.revoke_token('https://git.app.uib.no/oauth/revoke', session['log_ref'])
+    print(session)
+    logout_user()
+    print(session)
+    
+    return "logged out"
+    #oauth.gitlab.revoke_token('https://git.app.uib.no/oauth/revoke', session['log_ref'])
 
 
 @bp.route('/sudone')
@@ -200,7 +211,6 @@ def authorize_gitlab():
 @login_manager.user_loader
 def user_loader(user_id):
     user = db_session.get(User, int(user_id))
-    print(user)
     return user
 
 @login_manager.unauthorized_handler

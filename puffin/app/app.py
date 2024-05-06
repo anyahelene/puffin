@@ -1,6 +1,8 @@
+print('\n\n\n\n------------------------------------------------------------------------\n\n')
+
 from datetime import datetime
 import json
-from flask import Blueprint, Flask, abort, g, has_request_context, render_template, request, send_file, send_from_directory, make_response, session
+from flask import Blueprint, Flask, flash, abort, g, has_request_context, render_template, request, send_file, send_from_directory, make_response, session
 from flask_login import login_required, current_user
 from flask_wtf import CSRFProtect, FlaskForm
 import gitlab
@@ -8,10 +10,9 @@ from requests import HTTPError
 from werkzeug.security import safe_join
 from sqlalchemy.exc import SQLAlchemyError, NoResultFound
 from sqlalchemy import select
-from os.path import dirname, abspath, join
+from os.path import dirname, abspath, join, isabs
 from puffin.app import view_projects
 from .errors import ErrorResponse
-from puffin import settings
 from puffin.canvas.users import CanvasConnection
 from puffin.gitlab.users import GitlabConnection
 from puffin.db import database
@@ -22,7 +23,6 @@ import yaml
 import base36
 
 APP_PATH = dirname(dirname(dirname(abspath(__file__))))
-
 
 class RequestFormatter(logging.Formatter):
     def format(self, record):
@@ -82,11 +82,8 @@ LOGGING = {'version': 1,
            }
 
 
-print(LOGGING)
-logging.config.dictConfig(LOGGING)
-
 root_logger = logging.getLogger()
-# root_logger.setLevel(logging.DEBUG)
+root_logger.setLevel(logging.DEBUG)
 #_fileHandler = logging.FileHandler(join(APP_PATH, "applog.log"), 'w')
 # _fileHandler.setLevel(logging.DEBUG)
 #_streamHandler = logging.StreamHandler()
@@ -94,33 +91,39 @@ root_logger = logging.getLogger()
 #werkzeug_logger = logging.getLogger('werkzeug')
 # werkzeug_logger.addHandler(_fileHandler)
 # root_logger.addHandler(_streamHandler)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-print('\n\n\n', __name__, root_logger.name, logger.name, '\n\n\n')
-root_logger.warning('ROOT LOGGER')
-logger.info('LOGGER')
+
 #werkzeug_logger.info('WERKZEUG LOGGER')
 # Start app
 
 
 def create_app():
-    app = Flask('puffin',
-                template_folder=os.path.join(APP_PATH, 'dist/webroot/'),
-                static_folder=os.path.join(APP_PATH, 'dist/webroot/'))
+    app = Flask('puffin')
     #app.secret_key = 'mY s3kritz'
     app.config.from_object('puffin.app.default_settings')
-    app.config.from_pyfile(os.path.join(APP_PATH, 'secrets'))
     app.config['APP_PATH'] = APP_PATH
+    app.config['APP_WEBROOT'] = 'dist/webroot/'
+    app.config['SITE_TITLE'] = 'Puffin'
+    app.config.from_pyfile(join(APP_PATH, 'secrets'))
+
+    if not isabs(app.config['APP_WEBROOT']):
+        app.config['APP_WEBROOT'] = join(app.config['APP_PATH'], app.config['APP_WEBROOT'])
+    app.template_folder = join(app.config['APP_WEBROOT'], 'templates')
+    app.static_folder = app.config['APP_WEBROOT']
 
     bp = Blueprint('app', __name__, url_prefix=app.config.get('APP_PREFIX', '/'))
     
-    print(f'Starting {app.name}... prefix={bp.url_prefix} Paths: root={app.root_path}, instance={app.instance_path}, static={app.static_folder}, template={app.template_folder}')
+    print(f'Starting {app.name}...')
+    print(f'Prefix: {bp.url_prefix}')
+    print(f'Paths: APP_PATH={app.config["APP_PATH"]} APP_WEBROOT={app.config["APP_PATH"]}')
+    print(f'\troot={app.root_path}, instance={app.instance_path}')
+    print(f'\tstatic={app.static_folder}, template={app.template_folder}')
     CSRFProtect(app)
     CanvasConnection(app)
     GitlabConnection(app)
-    app.config.update(
 
-        SQLALCHEMY_DATABASE_URI=settings.DB_URL
-    )
+    database.configure(app)
     from . import login, view_courses, view_users
     login.init(app, bp)
     view_users.init(app, bp)
@@ -178,7 +181,7 @@ def favicon_png():
 @app_bp.route('/index.html')
 @app_bp.route('/')
 def index_html():
-    return render_template('index.html')
+    return render_template('index.html', title=app.config.get('SITE_TITLE', ''))
     #return send_from_directory(app.static_folder, 'index.html', mimetype='text/html')
 
 
@@ -194,10 +197,11 @@ def static_js(path: str):
 
 @app.before_request
 def before_request():
+    print('********** BEFORE REQUEST', request.base_url)
     g.log_ref = base36.dumps(int(datetime.timestamp(datetime.now())*1000) & 0x7fffffff)
-    print("request.args: ", request.args)
-    print("current_user: ", current_user)
-    print("session: ", session)
+    #print("request.args: ", request.args)
+    print("current_user: ", current_user, 'real user:', session.get('real_user'))
+    #print("session: ", session)
 
 @app.teardown_appcontext
 def shutdown_session(exception=None):
@@ -227,33 +231,35 @@ def handle_exception(e: ErrorResponse):
 def handle_exception(e: SQLAlchemyError):
     """Return JSON for errors."""
     error = {
-        'status': type(e).__name__,
-        'code': 400,
+        'status':'error',
+        'exception': type(e).__name__,
+        'status_code': 400,
         'message': str(e),
         'args': []
     }
     if isinstance(e, NoResultFound):
-        error['code'] = 404
+        error['status_code'] = 404
         error['message'] = 'Not found'
     response = make_response()
     # replace the body with JSON
     response.data = json.dumps(error)
-    response.status_code = error['code']
+    response.status_code = error['status_code']
     response.content_type = "application/json"
     return response
 
 @app.errorhandler(gitlab.exceptions.GitlabAuthenticationError)
 def handle_gitlab_auth_error(e:gitlab.exceptions.GitlabAuthenticationError):
     error = {
-        'status':type(e).__name__,
-        'code':e.response_code,
+        'status':'error',
+        'exception':type(e).__name__,
+        'status_code':e.response_code,
         'message':f'GitLab authentication error: {e}',
         'args':[]
     }
     response = make_response()
     # replace the body with JSON
     response.data = json.dumps(error)
-    response.status_code = error['code']
+    response.status_code = error['status_code']
     response.content_type = "application/json"
     return response
 

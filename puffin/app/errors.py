@@ -7,11 +7,13 @@ class ErrorResponse(Exception):
         self.data = kwargs
         if type(status_code) == int:
             self.status_code = status_code
+        if self.status not in ['error','warning','ok']:
+            self.status = 'error'
 
     def to_dict(self) -> dict:
         return {
             'status':self.status,
-            'code':self.status_code,
+            'status_code':self.status_code,
             'message':self.args[0],
             'args':self.args[1:],
             **self.data

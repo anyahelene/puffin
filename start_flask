@@ -1,0 +1,1 @@
+exec flask --debug -A puffin/app/app.py run --port 7777

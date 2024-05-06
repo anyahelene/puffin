@@ -18,11 +18,18 @@ const config = {
     context: path.resolve(__dirname, 'puffin'),
     plugins: [
         new MiniCssExtractPlugin({ filename: '[name].css' }),
-        new FaviconsWebpackPlugin('../static/favicon.png'),
+        //new FaviconsWebpackPlugin('../static/assets/puffin_red.svg'),
         new HtmlWebpackPlugin({
-            title: 'Debugger',
-            filename: 'index.html',
+            filename: 'templates/index.html',
             template: '../templates/page.html',
+            publicPath: '',
+            minify: false
+        }),
+        new HtmlWebpackPlugin({
+            filename: 'templates/login.html',
+            template: '../templates/login.html',
+            publicPath: '..',
+            minify: false
         }),
     ],
     stats: {
@@ -54,11 +61,12 @@ const config = {
         clean: true,
     },
     devServer: {
+        port: 7778,
         static: [
             path.resolve(__dirname, 'dist', 'webroot'),
             path.resolve(__dirname, 'static'),
             {
-                directory: '../fonts/',
+                directory: path.resolve(__dirname, '..', 'turtleduck', 'fonts'),
                 publicPath: '/fonts',
             },
         ],
@@ -67,7 +75,7 @@ const config = {
         magicHtml: false,
         historyApiFallback: {
             rewrites: [{ from: /^\/~/, to: '/index.html' }],
-            verbose: true,
+            //verbose: true,
         },
         devMiddleware: {
             writeToDisk: true,
@@ -217,6 +225,8 @@ export default function init(env, argv) {
         config.devtool = 'source-map'
     } else if(config.mode === 'production') {
         config.output.path = path.resolve(__dirname, 'prod-dist', 'webroot')
+        config.devtool = 'source-map';
+        //config.optimization.minimize = false;
         config.devServer = undefined;
     }
     return config;

@@ -17,7 +17,7 @@ def rename_columns(name, source):
         if type(spec) == str:
             cols.append(col.label(spec))
             info.append(col.info)
-            print('col',cols[-1])
+            #print('col',cols[-1])
         elif spec and not col.info.get('secret', False):
             cols.append(col)
             info.append(col.info)
