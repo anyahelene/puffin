@@ -14,7 +14,7 @@ import {
     tables,
     PRIVILEGED_ROLES,
 } from './model_gen';
-export {tables} from './model_gen';
+export { tables } from './model_gen';
 import { request, puffin, to_table, gitlab_url, handle_internal_link, user_emails } from './puffin';
 import { CourseView } from './courses';
 import { BorbPanelBuilder } from '../borb/Frames';
@@ -24,41 +24,39 @@ export class Group extends _Group {
     _original: _Group;
     members: Member[];
     course: Course;
-    constructor(jsonData:Record<string,any>, course: Course) {
+    constructor(jsonData: Record<string, any>, course: Course) {
         super(jsonData);
         this.course = course;
     }
 
-    as_link(link_text : string = undefined) {
+    as_link(link_text: string = undefined) {
         link_text = link_text ? link_text : this.slug;
         return html`<a data-type="group" data-target=${this.id} onclick=${handle_internal_link} href=${`group://${this.id}`}>${link_text}</a>`;
     }
 
-    get users() : User[] {
+    get users(): User[] {
         return this.members.map(m => this.course.usersById[m.user_id])
     }
 
-    display(panel : HTMLElement = undefined) {
+    display(panel: HTMLElement = undefined) {
         panel = panel ? panel : new BorbPanelBuilder()
             .frame('frame2')
             .panel('div', 'group_display')
             .title(this.name)
             .select(true)
             .done();
-        const table1 = to_table({ _type: 'Member[]', data: this.members, selectable:false });
+        const table1 = to_table({ _type: 'Member[]', data: this.members, selectable: false });
         const debug = puffin.debug['console'] ? html`<div><button type="button" onclick=${() => console.log(this)}>Debug</button></div>` : '';
         const children = this.children;
-        const children_table = children.length > 0 ? to_table({_type:'Group[]', data:children, selectable:false}) : '';
-
+        const children_table = children.length > 0 ? to_table({ _type: 'Group[]', data: children, selectable: false }) : '';
+        const title = this.json_data.project_path ? html`<a href="${gitlab_url(this.json_data.project_path)}" target="_blank"> ${this.json_data.project_name} – [${this.json_data.project_path}]</a>` : this.json_data.project_name;
         render(
             panel,
             html`
                 ${this.kind === 'team'
                     ? html`<h2>Team ${this.name} ${this.parent ? html`(${this.parent.as_link()})` : ''}</h2>
-                          <a href="${gitlab_url(this.json_data.project_path)}" target="_blank"
-                              > ${this.json_data.project_name} – [${this.json_data.project_path}]</a
-                          >`
-                    : html`<h2>Group/${this.kind} ${this.name}`}
+                          <b>Project:</b> ${title}`
+                    : html`<h2>Group/${this.kind} ${this.name}</h2>`}
                 <div><borb-sheet>${table1}</borb-sheet></div>
                 ${this.join_source ? html`<p>(members imported from ${this.join_source})</p>` : ''}
                 <div><b>Email:</b> ${user_emails(this.users)}</div>
@@ -88,27 +86,27 @@ export const Team_columns = [
     {
         name: "parent_id",
         type: "custom",
-        mapping: (field, obj:Group,spec) => html.node`${obj.parent?.as_link()}`
+        mapping: (field, obj: Group, spec) => html.node`${obj.parent?.as_link()}`
     },
     {
         name: "name",
         type: "str",
-        access: {"write": "member"},
+        access: { "write": "member" },
     },
     {
         name: "slug",
         type: "group.slug",
-        form: {"slugify": "name"},
+        form: { "slugify": "name" },
     },
     {
         name: "project",
         type: "custom",
         mapping: (field, obj, spec) => html.node`<a href="${gitlab_url(obj.json_data.project_path)}" target="_blank">${obj.json_data.project_name}</a>`
     },
-/*    {
-        name: "json_data",
-        type: "dict",
-    },*/
+    /*    {
+            name: "json_data",
+            type: "dict",
+        },*/
 ]
 tables["Team"] = Team_columns;
 
@@ -142,7 +140,7 @@ export class Assignment extends _Assignment {
         return this._course;
     }
 
-    as_link(link_text : string = undefined) {
+    as_link(link_text: string = undefined) {
         link_text = link_text ? link_text : this.slug;
         return html`<a data-type="assignment" data-target=${this.id} onclick=${handle_internal_link} href=${`group://${this.id}`}>${link_text}</a>`;
     }
@@ -196,7 +194,7 @@ export class User extends _FullUser {
     get section() {
         return this.groups.filter(g => g.kind === 'section')
     }
-    as_link(link_text : string = undefined) {
+    as_link(link_text: string = undefined) {
         link_text = link_text ? link_text : `${this.firstname} ${this.lastname}`;
         return html`<a data-type="user" data-target=${this.id} onclick=${handle_internal_link} href=${`group://${this.id}`}>${link_text}</a>`;
     }
@@ -255,8 +253,8 @@ export const Member_columns = [
 tables['Member'] = Member_columns;
 
 export class Course extends _Course {
-    public static courses : Course[] = [];
-    public static current : Course = null;
+    public static courses: Course[] = [];
+    public static current: Course = null;
     static current_user: SelfUser;
 
     _original: _Course;
@@ -395,7 +393,7 @@ export class Course extends _Course {
     clone_team_projects() {
         return this.groups.filter(g => g.kind === 'team').map(t => `[ ! -f ${t.slug} ] && git clone git@git.app.uib.no:${t.json_data.project_path} ${t.slug} && sleep 2`);
     }
-    as_link(link_text : string = undefined) {
+    as_link(link_text: string = undefined) {
         link_text = link_text ? link_text : `${this.slug}`;
         return html`<a data-type="course" data-target=${this.id} onclick=${handle_internal_link} href=${`group://${this.id}`}>${link_text}</a>`;
     }

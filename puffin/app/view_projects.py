@@ -6,7 +6,7 @@ from puffin.db.database import db_session as db
 from sqlalchemy import select,and_
 
 from puffin.gitlab.users import GitlabConnection
-from .errors import ErrorResponse
+from puffin.util.errors import ErrorResponse
 from puffin.util.util import *
 import logging
 logger = logging.getLogger(__name__)

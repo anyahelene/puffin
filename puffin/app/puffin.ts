@@ -24,6 +24,16 @@ export function modify_table(
         }
     });
 }
+export function add_to_table(
+    table: string | ColumnSpec[],
+    entry_name: string,
+    entry: ColumnSpec
+) {
+    const _table = Array.isArray(table) ? table : (tables[table] as ColumnSpec[]);
+    entry.name = entry.name  || entry_name;
+    _table.push(entry);
+    return _table;
+}
 //tables['with_member_list'] = [{ name: 'members', type: 'member[]' }];
 //tables['with_group_list'] = [{ name: 'groups', type: 'group[]' }];
 tables['FullUser'].push({ name: 'team', type: 'group[]', filter: '' });

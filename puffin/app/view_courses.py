@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 import os
 import posixpath
 from flask import Blueprint, Flask, current_app, request, session
-from flask_login import login_required, current_user
+from flask_login import login_required, current_user as current_user_proxy
 from gitlab import GitlabOperationError
 from slugify import slugify
 from puffin.db.model_tables import (
@@ -18,6 +18,7 @@ from puffin.db.model_tables import (
     Membership,
     PRIVILEGED_ROLES
 )
+current_user:User = current_user_proxy
 from puffin.db.model_views import CourseUser, UserAccount
 from puffin.db.model_util import (
     check_group_membership,
@@ -33,7 +34,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import aliased
 from simpleeval import simple_eval
 from puffin.gitlab.users import GitlabConnection
-from .errors import ErrorResponse
+from puffin.util.errors import ErrorResponse
 from puffin.util.util import *
 from flask_wtf import FlaskForm
 from wtforms import (
@@ -135,7 +136,7 @@ def courses():
             db.execute(select(Course).where(subq).order_by(Course.name)).scalars().all()
         )
 
-    return [c.to_json() for c in courses]
+    return [c.to_result(is_privileged(current_user, c)) for c in courses]
 
 
 @bp.get("/<course_spec>/")
@@ -154,7 +155,8 @@ def course(course_spec):
                 return cc.clean_course(cc.get_course(course.external_id))
         raise ErrorResponse("Access denied", status_code=403)
     else:
-        return get_course_or_fail(course_spec).to_json()
+        course = get_course_or_fail(course_spec)
+        return course.to_result(is_privileged(current_user, course))
 
 
 class EditCourseForm(FlaskForm):
@@ -314,8 +316,8 @@ def course_users(course_spec):
         ).all()
         logger.info("users: found %s records", len(users))
         for u, a in users:
-            u = u.to_json()
-            u.update(a.to_json())
+            u = u.to_result(is_privileged(current_user, course))
+            u.update(a.to_result(is_privileged(current_user, course)))
             u["_type"] = "course_user,user_account"
             result.append(u)
     else:
@@ -329,7 +331,7 @@ def course_users(course_spec):
             .all()
         )
         logger.info("users: found %s records", len(users))
-        result = [u.to_json() for u in users]
+        result = [u.to_result(is_privileged(current_user, course)) for u in users]
     return result
 
 
@@ -377,14 +379,22 @@ def course_user(course_spec, user_id):
 
 
 @bp.get("/<course_spec>/groups/")
+@bp.get("/<course_spec>/teams/")
 @login_required
 def get_course_groups(course_spec):
     course = get_course_or_fail(course_spec)
-    if not is_privileged(current_user, course):
-        where = [Membership.group_id == Group.id, Membership.user_id == current_user.id, Membership.join_model != JoinModel.REMOVED]
+    priv = is_privileged(current_user, course)
+
+    if not priv:
+        # restrict to groups the user is a member of
+        where = [] # Membership.group_id == Group.id, Membership.user_id == current_user.id, Membership.join_model != JoinModel.REMOVED]
     else:
         where = []
-
+        
+    if request.path.endswith('teams/'):
+        where.append(Group.kind == 'team')
+    # TODO: add other filters
+    
     groups = (
         db.execute(
             select(Group).where(Group.course_id == course.id, *where).order_by(Group.name)
@@ -393,9 +403,8 @@ def get_course_groups(course_spec):
         .all()
     )
     logger.info("groups: found %s records", len(groups))
-
-    return [g.to_json() for g in groups]
-
+      
+    return [g.to_result(priv or current_user.is_member(g)) for g in groups]
 
 @bp.get("/<course_spec>/memberships/")
 @login_required
@@ -424,27 +433,7 @@ def get_course_memberships(course_spec):
 # e.g.: {"name":"Microissant","slug":"microissant", "join_model":"AUTO", "join_source":"gitlab(33690, students_only=True)", "kind":"team"}
 
 
-@bp.get("/<course_spec>/teams/")
-@login_required
-def get_course_teams(course_spec):
-    course = get_course_or_fail(course_spec)
-    if not is_privileged(current_user, course):
-        where = [Membership.group_id == Group.id, Membership.user_id == current_user.id, Membership.join_model != JoinModel.REMOVED]
-    else:
-        where = []
 
-    groups = (
-        db.execute(
-            select(Group)
-            .where(Group.course_id == course.id, Group.kind == "team", *where)
-            .order_by(Group.name)
-        )
-        .scalars()
-        .all()
-    )
-    logger.info("teams: found %s records", len(teams))
-
-    return [g.to_json() for g in groups]
 
 
 @bp.post("/<course_spec>/teams/")
@@ -615,8 +604,8 @@ def create_course_group(course_spec, group_id=None):
 @bp.get("/<course_spec>/groups/<group_spec>")
 @login_required
 def course_group(course_spec, group_spec):
-    course = get_course_or_fail(course_spec)
-    group = get_group_or_fail(course, group_spec)
+    course = get_course_or_fail(course_spec) # limited to members or privilege
+    group = get_group_or_fail(course, group_spec) # limited to members or privilege
 
     return group.to_json()
 
@@ -625,8 +614,8 @@ def course_group(course_spec, group_spec):
 @login_required
 def course_group_users(course_spec, group_spec):
     result = []
-    course = get_course_or_fail(course_spec)
-    group = get_group_or_fail(course, group_spec)
+    course = get_course_or_fail(course_spec) # limited to members or privilege
+    group = get_group_or_fail(course, group_spec) # limited to members or privilege
 
     if request.args.get("details", "false") == "true" and is_privileged(current_user, course):
         for m in group.memberships:

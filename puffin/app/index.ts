@@ -2,6 +2,8 @@ import nearley from 'nearley';
 import { Settings } from '../borb/Settings'
 import { SubSystem } from '../borb/SubSystem'
 import { BorbFrame, BorbPanelBuilder } from '../borb/Frames';
+import { Styles } from '../borb/Styles';
+Styles.pathPrefix = 'static/';
 import grammar from '../qlang/qlang.ne';
 
 import slugify from 'slugify';
@@ -20,12 +22,14 @@ import { CourseView } from './courses';
 import { pick_project_form } from './gitlab';
 import { Course, SelfUser, User, tables } from './model';
 import {
+    add_to_table,
     create_team_from_project_url,
     display_panel,
     get_gitlab_group,
     get_gitlab_project,
     gitlab_url,
     login_panel,
+    modify_table,
     puffin,
     request,
     to_table
@@ -33,6 +37,7 @@ import {
 import { add_many_teams_form, add_team_form } from './teams';
 import { activate_flashes, show_flash } from './flashes';
 //import defaultConfig from './config.json';
+
 const defaultConfig = {};
 slugify.extend({ '+': '-' });
 puffin.tables = tables;
@@ -122,9 +127,7 @@ puffin.TilingWindow = TilingWindow;
 console.log('Hello!!');
 const wm = new TilingWM('mid', 32, 16);
 puffin.wm = wm;
-window.addEventListener('DOMContentLoaded', (ev) => {
-    wm.initialize(layoutSpec, layoutPrefs);
-});
+
 puffin.courses = CourseView;
 puffin.to_table = to_table;
 //SubSystem.waitFor(Frames.Frames).then((frames) => {
@@ -167,17 +170,22 @@ function enterPressed(ev: KeyboardEvent) {
     }
 }
 
-SubSystem.waitFor('dom').then(() => {
+SubSystem.waitFor('dom').then(async () => {
     activate_flashes();
+    if (document.querySelector('body').dataset.endpoint !== 'app.index_html')
+        return;
 
-    request('users/self/', 'GET', undefined, false, true).then(async (self: SelfUser) => {
-        puffin.self = self;
-        Course.current_user = self;
-        const user_info = document.getElementById('user-info');
-        self.on_update = () => {
-            render(
-                user_info,
-                html`
+    // Window manager layout
+    wm.initialize(layoutSpec, layoutPrefs);
+
+    const self: SelfUser = await request('users/self/', 'GET', undefined, false, true);
+    puffin.self = self;
+    Course.current_user = self;
+    const user_info = document.getElementById('user-info');
+    self.on_update = () => {
+        render(
+            user_info,
+            html`
                     <span class="name" title=${self.course_user?.role || ''}
                         >${self.firstname} ${self.lastname} (${self.course_user?.role || (self.is_admin ? 'admin' : 'user')})</span
                     >
@@ -202,65 +210,78 @@ SubSystem.waitFor('dom').then(() => {
                         ></li>
                     </ul>
                     ${self.is_admin
-                        ? html`<span class="is-admin" title="Logged in as administrator"
+                    ? html`<span class="is-admin" title="Logged in as administrator"
                               ><span></span
                           ></span>`
-                        : ''}
+                    : ''}
                 `,
-            );
-        };
-        await Course.updateCourses();
-        try {
-            const usp = new URLSearchParams(window.location.search);
-            if (usp.has('course')) {
-                await Course.setActiveCourse(parseInt(usp.get('course')))
-            }
-            let course = Course.courses[45714] || Course.courses.filter(() => true)[0];
-            if (course) {
-                await course.setActive();
-            } else {
-                show_flash('No courses found!');
-            }
-        } catch (e) {
-            console.error('Failed to set active course', e);
+        );
+    };
+    await Course.updateCourses();
+    try {
+        const usp = new URLSearchParams(window.location.search);
+        if (usp.has('course')) {
+            await Course.setActiveCourse(parseInt(usp.get('course')))
         }
-        if (self.is_admin || Course.current_user.course_user?.is_privileged) {
-            puffin.debug['console'] = true;
-            document
-                .querySelectorAll('#frame3 [hidden=true]')
-                .forEach((p) => p.removeAttribute('hidden'));
-            (document.querySelector('#frame3') as BorbFrame).queueUpdate(true);
-            CourseView.set_course_view();
+        let course = Course.courses[45714] || Course.courses.filter(() => true)[0];
+        if (course) {
+            await course.setActive();
         } else {
-            const debug = puffin.debug['console'] ? html`<div><button type="button" onclick=${() => console.log(this)}>Debug</button></div>` : '';
-            const user_panel = new BorbPanelBuilder()
-                .frame('frame2')
-                .panel('div', 'user_panel')
-                .title(`${self.firstname} ${self.lastname}`)
-                .select()
-                .done();
-            const user = Course.current?.usersById[self.id];
-            const team = user?.team[0];
-            if (user && team) {
-                render(
-                    user_panel,
-                    html`<h2>${user.firstname} ${user.lastname}</h2>
+            show_flash('No courses found!');
+        }
+    } catch (e) {
+        console.error('Failed to set active course', e);
+    }
+    const is_privileged = Course.current_user.course_user?.is_privileged;
+    if (self.is_admin || is_privileged) {
+        console.warn('Choosing admin view', 'is_admin=', self.is_admin, 'is_privileged=', is_privileged, 'role=', Course.current_user.course_user?.role);
+
+        if(self.is_admin) {
+            add_to_table('FullUser', 'impersonate', {
+                head: ' ',
+                mapping : (field, obj, spec) =>
+                         html.node`<a class="button" title="impersonate" href="${`login/sudo/${obj.email}`}">🥸</a>`,
+                type : 'custom'
+            });
+        }
+        puffin.debug['console'] = true;
+        document
+            .querySelectorAll('#frame3 [hidden=true]')
+            .forEach((p) => p.removeAttribute('hidden'));
+        (document.querySelector('#frame3') as BorbFrame).queueUpdate(true);
+        CourseView.set_course_view();
+    } else {
+        const debug = puffin.debug['console'] ? html`<div><button type="button" onclick=${() => console.log(this)}>Debug</button></div>` : '';
+        const user_panel = new BorbPanelBuilder()
+            .frame('frame2')
+            .panel('div', 'user_panel')
+            .title(`${self.firstname} ${self.lastname}`)
+            .select()
+            .done();
+        const user = Course.current?.usersById[self.id];
+        const team = user?.team[0];
+        if (user && team) {
+            console.warn('Choosing user view', 'user=', user, 'team=', team);
+            render(
+                user_panel,
+                html`<h2>${user.firstname} ${user.lastname}</h2>
                  <b>Team:</b><a href="${gitlab_url(team.json_data.project_path)}" target="_blank"
                   > ${team.json_data.project_name} – [${team.json_data.project_path}]</a>
                   ${debug}`,
-                );
-                const team_panel = new BorbPanelBuilder()
-                    .frame('frame3')
-                    .panel('div', 'team_panel')
-                    .title(team.name)
-                    .select()
-                    .done();
-                team.display(team_panel);
-            }
+            );
+            const team_panel = new BorbPanelBuilder()
+                .frame('frame3')
+                .panel('div', 'team_panel')
+                .title(team.name)
+                .select()
+                .done();
+            team.display(team_panel);
+        } else {
+            console.warn('Dunno what to do...', 'user=', user, 'team=', team);
         }
-    });
+    }
 
-    const retro = (ev) => {
+    const retro = (ev:Event) => {
         document.querySelector('body').classList.toggle('retro', (ev.target as HTMLInputElement).checked);
     };
     document

@@ -3,7 +3,7 @@ from flask_login import login_required, current_user
 from puffin.db.model_tables import Account, Enrollment, User
 from puffin.db.database import db_session as db
 from sqlalchemy import select,and_
-from .errors import ErrorResponse
+from puffin.util.errors import ErrorResponse
 from puffin.util.util import *
 import logging
 logger = logging.getLogger(__name__)
@@ -57,13 +57,13 @@ def user_self():
 @bp.get('/<user_spec>/')
 @login_required
 def user(user_spec):
-    user = get_user_or_fail(user_spec)
+    user = get_user_or_fail(user_spec) # restricted to self or admin
     return user.to_json()
 
 @bp.get('/<user_spec>/courses')
 @login_required
 def user_courses(user_spec):
-    user = get_user_or_fail(user_spec)
+    user = get_user_or_fail(user_spec) # restricted to self or admin
     return [en.course.to_json() for en in user.enrollments]
 
 

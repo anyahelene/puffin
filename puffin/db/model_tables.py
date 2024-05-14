@@ -5,6 +5,7 @@ from typing_extensions import Annotated
 from sqlalchemy import ForeignKey, ForeignKeyConstraint, UniqueConstraint, inspect, text, JSON
 from sqlalchemy.orm import relationship, Mapped, mapped_column, Session
 from sqlalchemy.dialects.sqlite import insert
+from sqlalchemy.ext.mutable import MutableDict
 from datetime import datetime
 from .database import Base
 import logging
@@ -146,7 +147,7 @@ class Course(Base):
               'form': {'slugify': 'name'}})
     expiry_date: Mapped[Optional[datetime]] = mapped_column(
         info={'view': {'course_user': False}})
-    json_data = mapped_column(JSON, server_default="{}", nullable=False,
+    json_data = mapped_column(MutableDict.as_mutable(JSON), server_default="{}", nullable=False,
                               info={'view': {'course_user': False, 'full_user': False}})
 
     info = {
@@ -183,9 +184,10 @@ class Group(Base):
     join_model: Mapped[JoinModel] = mapped_column(default=JoinModel.RESTRICTED)
     join_source: Mapped[Optional[str]] = mapped_column(
         doc="E.g. gitlab(project_id)", default=None)
-    json_data = mapped_column(JSON, server_default="{}", nullable=False)
+    json_data = mapped_column(MutableDict.as_mutable(JSON), server_default="{}", nullable=False)
     info = {
-        'access': {'read': 'course:member', 'sync': 'member'}
+        'access': {'read': 'course:member', 'sync': 'member'},
+        'public_json' : ['project_name','public_info']
     }
 
     course = relationship("Course")
@@ -293,6 +295,13 @@ class User(Base):
                 ms.append(m)
         return ms
 
+    def is_member(self, group:Group|int|str) -> bool:
+        """Returns true if user is a member of the group. Group can be a group object, a group_id or slug."""
+        for m in self.memberships:
+            if group in [m.group, m.group_id, m.group.slug]:
+                return True        
+        return False
+    
     def account(self, provider: str) -> Account | None:
         for acc in self.accounts:
             if acc.provider_name == provider:
@@ -348,7 +357,7 @@ class Assignment(Base):
     grade_by_date: Mapped[Optional[datetime]] = \
         mapped_column(info={'form': True},
                       doc='Date when grading is due')
-    json_data = mapped_column(JSON, nullable=False, server_default='{}')
+    json_data = mapped_column(MutableDict.as_mutable(JSON), nullable=False, server_default='{}')
 
     info = {
         'access': {'read': 'course:member', 'write': 'course:teacher'}
@@ -377,7 +386,7 @@ class StudentAssignment(Base):
     project_id: Mapped[Optional[int]] = mapped_column(ForeignKey('project.id'))
     canvas_id: Mapped[Optional[str]] = mapped_column(unique=True)
     due_date: Mapped[Optional[datetime]] = mapped_column()
-    json_data = mapped_column(JSON, server_default="{}", nullable=False)
+    json_data = mapped_column(MutableDict.as_mutable(JSON), server_default="{}", nullable=False)
 
     info = {
         'access': {'read': ['user', 'course:teacher'], 'write': 'course:teacher', 'sync': ['user', 'course:teacher']}
@@ -401,7 +410,7 @@ class Project(Base):
     gitlab_id: Mapped[Optional[str]] = mapped_column(unique=True)
     submitted_ref: Mapped[Optional[str]] = mapped_column(
         doc="Identifies actual submission (a tag, branch or commit id)")
-    json_data = mapped_column(JSON, server_default="{}", nullable=False)
+    json_data = mapped_column(MutableDict.as_mutable(JSON), server_default="{}", nullable=False)
 
     info = {
         'access': {'read': ['owner', 'course:teacher'],

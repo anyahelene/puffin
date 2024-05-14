@@ -30,9 +30,10 @@ COPY --chmod=755 <<EOF $HOME/runit.sh
     else
         BIND="--bind 127.0.0.1:$PORT"
     fi
+    LOG_FORMAT='%({x-real-ip}i)s %(l)s %({x-user}o)s %(t)s "%(r)s" %(s)s %(b)s "%(f)s" "%(a)s"'
     cd $INSTALL_DIR 
     ls -l /run /run/puffin
-    exec gunicorn \$BIND \$LOGGING puffin.app:app
+    exec gunicorn \$BIND \$LOGGING --access-logformat="\$LOG_FORMAT" puffin.app:app
 EOF
 COPY <<EOF $HOME/.bashrc
 . $VENV/bin/activate

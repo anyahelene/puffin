@@ -57,17 +57,20 @@ const config = {
     output: {
         path: path.resolve(__dirname, 'dist', 'webroot'),
         //    publicPath: 'static/',
-        filename: 'js/[name].[contenthash].js',
+        filename: 'static/js/[name].[contenthash].js',
         clean: true,
     },
     devServer: {
         port: 7778,
         static: [
             path.resolve(__dirname, 'dist', 'webroot'),
-            path.resolve(__dirname, 'static'),
+            {
+                directory: path.resolve(__dirname, 'static'),
+                publicPath: '/static',
+            },
             {
                 directory: path.resolve(__dirname, '..', 'turtleduck', 'fonts'),
-                publicPath: '/fonts',
+                publicPath: '/static/fonts',
             },
         ],
         hot: 'only',
@@ -198,7 +201,7 @@ const config = {
                 resourceQuery: { not: [/raw/] },
                 type: 'asset/resource',
                 generator: {
-                    filename: 'css/[name].css',
+                    filename: 'static/css/[name].css',
                 },
                 exclude: /node_modules/,
                 use: [

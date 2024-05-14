@@ -17,7 +17,9 @@ $color-dark: #3D3D3D;
     --color-1-light: #{color.scale($color-1, $lightness:+40%)};
     //--color-1b: #F36E31;
     --color-2: #{$color-2}; //--color-2b: #Ecbf36;
+    --color-2-desat: #{color.scale($color-2, $saturation:-40%)}; 
     --color-2-light: #{color.scale($color-2, $lightness:+40%)};
+    --color-2-light-desat: #{color.scale($color-2, $lightness:+40%, $saturation:-40%)};
     --color-3: #{$color-3};
     --color-3-light: #{color.scale($color-3, $lightness:+40%)};
     //--color-3b: #E92049;
@@ -169,7 +171,7 @@ input:invalid {
     border-color: var(--color-3)
 }
 
-button {
+button, a.button {
     border: .125rem outset var(--color-2);
     border-radius: .25rem;
     background-color: var(--color-2-light);
@@ -181,20 +183,20 @@ button {
 
     &:disabled {
         border-style: solid;
-        /*border-color: var(--color-light);
-        background-color: var(--color-light);
-*/
+        background-color: var(--color-2-light-desat);
+        border-color: var(--color-2-desat);
     }
 }
 
 button:hover:not(:disabled),
-button:active:not(:disabled) {
+button:active:not(:disabled), a.button:hover, a.button:active {
     border-color: var(--color-1);
     background-color: var(--color-1-light);
+    border-style:outset;
 }
 
 button:hover:disabled {
-    border-color: var(--color-2-light);
+    border-color: var(--color-2-light-desat);
 }
 
 button:active:not(:disabled) {
@@ -212,9 +214,10 @@ a:link[target="_blank"] {
     position: relative;
 }
 
+
 a:link.external::after,
 a:link[target="_blank"]::after {
-    background-image: url(../assets/arrow-up-right-square.svg);
+    background-image: url(../img/arrow-up-right-square.svg);
     background-size: 50%;
     background-repeat: no-repeat;
     content: "  ";
@@ -223,6 +226,9 @@ a:link[target="_blank"]::after {
     position: absolute;
 }
 
+a:link.button {
+    text-decoration: none; 
+}
 #output {
     background: #eee;
     color: #333;

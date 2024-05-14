@@ -10,7 +10,7 @@ import logging
 
 from slugify import slugify
 logger = logging.getLogger(__name__)
-from puffin.app.errors import ErrorResponse
+from puffin.util.errors import ErrorResponse
 
 class CanvasConnection:
 

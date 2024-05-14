@@ -4,7 +4,7 @@ from flask import Blueprint, Flask, abort, current_app, flash, g, jsonify, redir
 from flask_login import LoginManager, current_user, login_required, login_user, logout_user
 from flask_wtf import CSRFProtect, FlaskForm
 from wtforms import StringField, PasswordField, SubmitField
-from puffin.app.errors import ErrorResponse
+from puffin.util.errors import ErrorResponse
 from puffin.db.model_tables import User,Account
 from puffin.db.database import db_session
 from sqlalchemy import select

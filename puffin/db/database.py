@@ -42,6 +42,23 @@ class PreBase():
         result = {col.key : col_json(col) for col in self.__table__.c if not col.info.get('secret', False)}
         result['_type'] = self.__tablename__
         return result
+    
+    def to_result(self, privileged=False):
+        def col_json(col):
+            val = getattr(self, col.key)
+            if isinstance(val, enum.Enum):
+                return val.name
+            else:
+                return val
+        result = {col.key : col_json(col) for col in self.__table__.c if not col.info.get('secret', False)}
+        if not privileged:
+            if 'json_data' in result:
+                tmp = result.copy()
+                allowed = getattr(self, 'info', {}).get('public_json', [])
+                result['json_data'] = {k:v for k,v in result['json_data'].items() if k in allowed}
+                print('PROTECT', allowed, tmp.get('json_data'), result.get('json_data'))
+        result['_type'] = self.__tablename__
+        return result
 
     def __repr__(self):
         return json.dumps(self.to_json(), cls=DateEncoder)

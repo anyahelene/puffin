@@ -339,6 +339,7 @@ export const Course_columns = [
         name: "json_data",
         type: "dict",
         view: {"course_user": false, "full_user": false},
+        _ext_mutable_listener_applied: true,
     },
 ]
 tables["Course"] = Course_columns;
@@ -452,6 +453,7 @@ export const Group_columns = [
     {
         name: "json_data",
         type: "dict",
+        _ext_mutable_listener_applied: true,
     },
 ]
 tables["Group"] = Group_columns;
@@ -847,6 +849,7 @@ export const Assignment_columns = [
     {
         name: "json_data",
         type: "dict",
+        _ext_mutable_listener_applied: true,
     },
 ]
 tables["Assignment"] = Assignment_columns;
@@ -1015,6 +1018,7 @@ export const StudentAssignment_columns = [
     {
         name: "json_data",
         type: "dict",
+        _ext_mutable_listener_applied: true,
     },
 ]
 tables["StudentAssignment"] = StudentAssignment_columns;
@@ -1145,6 +1149,7 @@ export const Project_columns = [
     {
         name: "json_data",
         type: "dict",
+        _ext_mutable_listener_applied: true,
     },
 ]
 tables["Project"] = Project_columns;

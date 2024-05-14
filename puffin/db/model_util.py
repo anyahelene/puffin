@@ -5,7 +5,7 @@ from typing import IO, Tuple, Type, TypeVar
 import regex
 from slugify import slugify
 import sqlalchemy as sa
-from puffin.app.errors import ErrorResponse
+from puffin.util.errors import ErrorResponse
 from puffin.db import database
 
 from .model_views import CourseUser, FullUser, UserAccount
