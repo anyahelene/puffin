@@ -27,10 +27,12 @@ ROLES = {
     'peer': 'Anyone enrolled in the same course as current resource',
     'teacher': 'Anyone enrolled as ta, teacher or admin in the same course',
     'admin': 'Anyone enrolled as teacher or admin in the same course',
-    'member': 'Anyone enrolled in current course/group'
+    'member': 'Anyone enrolled in current course/group',
+    'reviewer': 'Student with review access to a project'
 }
 PRIVILEGED_ROLES = ['ta','teacher','admin']
-ROLE_ICONS = {'student': '🧑‍🎓', 'ta':'🧑‍💻', 'teacher': '🧑‍🏫', 'admin': '🧑‍💼', '': '🤷'}
+ROLE_ICONS = {'student': '🧑‍🎓', 'ta':'🧑‍💻', 'teacher': '🧑‍🏫', 'admin': '🧑‍💼', 'reviewer': '🕵️', '': '🤷'}
+
 ACCESS = {
     'read': 'Can read data unless secret',
     'write': 'Can write data if writable',
@@ -187,7 +189,7 @@ class Group(Base):
     json_data = mapped_column(MutableDict.as_mutable(JSON), server_default="{}", nullable=False)
     info = {
         'access': {'read': 'course:member', 'sync': 'member'},
-        'public_json' : ['project_name','public_info']
+        'public_json' : ['project_name','public_info','share']
     }
 
     course = relationship("Course")
@@ -295,10 +297,12 @@ class User(Base):
                 ms.append(m)
         return ms
 
-    def is_member(self, group:Group|int|str) -> bool:
-        """Returns true if user is a member of the group. Group can be a group object, a group_id or slug."""
+    def is_member(self, group:Group|int) -> bool:
+        """Returns true if user is a member of the group. Group can be a group object or a group_id."""
+        if isinstance(group, Group):
+            group = group.id
         for m in self.memberships:
-            if group in [m.group, m.group_id, m.group.slug]:
+            if group == m.group_id:
                 return True        
         return False
     

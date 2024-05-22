@@ -225,8 +225,10 @@ a:link[target="_blank"]::after {
     height: 1em;
     position: absolute;
 }
-
-a:link.button {
+a.line-through {
+    text-decoration: line-through red 2px !important;
+}
+a.button {
     text-decoration: none; 
 }
 #output {

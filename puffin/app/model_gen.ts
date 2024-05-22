@@ -513,7 +513,7 @@ export const Membership_columns = [
     {
         name: "role",
         type: "str",
-        icons: {"student": "\ud83e\uddd1\u200d\ud83c\udf93", "ta": "\ud83e\uddd1\u200d\ud83d\udcbb", "teacher": "\ud83e\uddd1\u200d\ud83c\udfeb", "admin": "\ud83e\uddd1\u200d\ud83d\udcbc", "": "\ud83e\udd37"},
+        icons: {"student": "\ud83e\uddd1\u200d\ud83c\udf93", "ta": "\ud83e\uddd1\u200d\ud83d\udcbb", "teacher": "\ud83e\uddd1\u200d\ud83c\udfeb", "admin": "\ud83e\uddd1\u200d\ud83d\udcbc", "reviewer": "\ud83d\udd75\ufe0f", "": "\ud83e\udd37"},
     },
     {
         name: "join_model",
@@ -574,7 +574,7 @@ export const Enrollment_columns = [
     {
         name: "role",
         type: "str",
-        icons: {"student": "\ud83e\uddd1\u200d\ud83c\udf93", "ta": "\ud83e\uddd1\u200d\ud83d\udcbb", "teacher": "\ud83e\uddd1\u200d\ud83c\udfeb", "admin": "\ud83e\uddd1\u200d\ud83d\udcbc", "": "\ud83e\udd37"},
+        icons: {"student": "\ud83e\uddd1\u200d\ud83c\udf93", "ta": "\ud83e\uddd1\u200d\ud83d\udcbb", "teacher": "\ud83e\uddd1\u200d\ud83c\udfeb", "admin": "\ud83e\uddd1\u200d\ud83d\udcbc", "reviewer": "\ud83d\udd75\ufe0f", "": "\ud83e\udd37"},
         access: {"write": "admin", "read": "peer"},
     },
 ]
@@ -1564,7 +1564,7 @@ export const CourseUser_columns = [
     {
         name: "role",
         type: "str",
-        icons: {"student": "\ud83e\uddd1\u200d\ud83c\udf93", "ta": "\ud83e\uddd1\u200d\ud83d\udcbb", "teacher": "\ud83e\uddd1\u200d\ud83c\udfeb", "admin": "\ud83e\uddd1\u200d\ud83d\udcbc", "": "\ud83e\udd37"},
+        icons: {"student": "\ud83e\uddd1\u200d\ud83c\udf93", "ta": "\ud83e\uddd1\u200d\ud83d\udcbb", "teacher": "\ud83e\uddd1\u200d\ud83c\udfeb", "admin": "\ud83e\uddd1\u200d\ud83d\udcbc", "reviewer": "\ud83d\udd75\ufe0f", "": "\ud83e\udd37"},
         access: {"write": "admin", "read": "peer"},
     },
     {
@@ -1803,7 +1803,7 @@ export const FullUser_columns = [
     {
         name: "role",
         type: "str",
-        icons: {"student": "\ud83e\uddd1\u200d\ud83c\udf93", "ta": "\ud83e\uddd1\u200d\ud83d\udcbb", "teacher": "\ud83e\uddd1\u200d\ud83c\udfeb", "admin": "\ud83e\uddd1\u200d\ud83d\udcbc", "": "\ud83e\udd37"},
+        icons: {"student": "\ud83e\uddd1\u200d\ud83c\udf93", "ta": "\ud83e\uddd1\u200d\ud83d\udcbb", "teacher": "\ud83e\uddd1\u200d\ud83c\udfeb", "admin": "\ud83e\uddd1\u200d\ud83d\udcbc", "reviewer": "\ud83d\udd75\ufe0f", "": "\ud83e\udd37"},
         access: {"write": "admin", "read": "peer"},
     },
     {

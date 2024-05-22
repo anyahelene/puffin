@@ -1,4 +1,4 @@
-from flask import Blueprint, Flask, current_app
+from flask import Blueprint, Flask, current_app, session
 from flask_login import login_required, current_user
 from puffin.db.model_tables import Account, Enrollment, User
 from puffin.db.database import db_session as db
@@ -52,6 +52,7 @@ def user_self():
         user['locale'] =  current_app.config.get('DEFAULT_LOCALE')
     for acc in current_user.accounts:
         user[f'{acc.provider_name}_account'] = acc.to_json()
+    user['real_id'] = session.get('real_user') or current_user.id
     return user
 
 @bp.get('/<user_spec>/')

@@ -109,6 +109,7 @@ def create_app(config_only = False):
     app.config.from_object('puffin.app.default_settings')
     app.config['APP_PATH'] = APP_PATH
     app.config['APP_WEBROOT'] = 'dist/webroot/'
+    app.config['APP_DOWNLOAD_DIR'] = join(app.config['APP_PATH'], 'downloads')
     app.config['SITE_TITLE'] = 'Puffin'
     app.config.from_pyfile(join(APP_PATH, 'secrets'))
 
@@ -131,6 +132,7 @@ def create_app(config_only = False):
         f'Paths: APP_PATH={app.config["APP_PATH"]} APP_WEBROOT={app.config["APP_PATH"]}')
     print(f'\troot={app.root_path}, instance={app.instance_path}')
     print(f'\tstatic={app.static_folder}, template={app.template_folder}')
+    print(f'\tdownloads={app.config["APP_DOWNLOAD_DIR"]}')
     if app.config.get('TRUST_X_REAL_IP', False):
         app.wsgi_app = ProxyFix(app.wsgi_app)
     
@@ -257,7 +259,7 @@ def before_request():
 
 @app.after_request
 def after_request(response:Response):
-    print('after requset', current_user)
+    print('after requset', current_user, '\n' + str(response.headers))
     if current_user:
         response.headers.add('X-User', getattr(current_user, "email", None))
     return response

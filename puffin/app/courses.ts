@@ -225,6 +225,7 @@ class _courses {
                     >
                     <div class="form-control">
                     <button type="button" data-text="Sync course data" onclick=${sync_all}>Sync course data</button></div>
+                    <div><a href=${`courses/${course.external_id}/users/?details=true&csv=true`} target="_blank">Users as CSV</a></div>
                     <div class="log">
                         ${course._log.map(
                             (entry) => html`<li class=${entry[0]}>${entry[1]}</li>`,

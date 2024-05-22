@@ -1,7 +1,41 @@
+from flask.json.tag import TaggedJSONSerializer
+import logging, random
+from io import StringIO
+import csv
+from puffin.canvas.users import CanvasConnection
+from wtforms import (
+    StringField,
+    SelectField,
+    SubmitField,
+    validators,
+    IntegerField,
+    DateTimeField,
+    ValidationError,
+    SelectMultipleField,
+    BooleanField,
+)
+from flask_wtf import FlaskForm
+from puffin.util.util import *
+from puffin.util.errors import ErrorResponse
+from puffin.gitlab.users import GitlabConnection
+from simpleeval import simple_eval
+from sqlalchemy.orm import aliased
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy import alias, and_, or_, select, column
+from puffin.db.database import db_session as db
+from puffin.db.model_util import (
+    check_group_membership,
+    check_unique,
+    new_id,
+    get_or_define,
+    update_from_uib,
+    update_groups_from_uib,
+)
+from puffin.db.model_views import CourseUser, UserAccount
 from datetime import datetime, timezone
 import os
 import posixpath
-from flask import Blueprint, Flask, current_app, request, session
+from flask import Blueprint, Flask, current_app, request, session, url_for, make_response
 from flask_login import login_required, current_user as current_user_proxy
 from gitlab import GitlabOperationError
 from slugify import slugify
@@ -18,37 +52,7 @@ from puffin.db.model_tables import (
     Membership,
     PRIVILEGED_ROLES
 )
-current_user:User = current_user_proxy
-from puffin.db.model_views import CourseUser, UserAccount
-from puffin.db.model_util import (
-    check_group_membership,
-    check_unique,
-    new_id,
-    get_or_define,
-    update_from_uib,
-    update_groups_from_uib,
-)
-from puffin.db.database import db_session as db
-from sqlalchemy import alias, and_, or_, select, column
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import aliased
-from simpleeval import simple_eval
-from puffin.gitlab.users import GitlabConnection
-from puffin.util.errors import ErrorResponse
-from puffin.util.util import *
-from flask_wtf import FlaskForm
-from wtforms import (
-    StringField,
-    SelectField,
-    SubmitField,
-    validators,
-    IntegerField,
-    DateTimeField,
-    ValidationError,
-)
-from puffin.canvas.users import CanvasConnection
-import logging
-from flask.json.tag import TaggedJSONSerializer
+current_user: User = current_user_proxy
 
 logger = logging.getLogger(__name__)
 
@@ -86,14 +90,14 @@ def get_course_or_fail(course_id_or_slug):
     return course
 
 
-def get_group(course, group_id_or_slug):
+def get_group(course, group_id_or_slug, privileged = False):
     group_id_or_slug = intify(group_id_or_slug)
     if isinstance(group_id_or_slug, int):
-        where = Group.id == group_id_or_slug
+        where = and_(Group.id == group_id_or_slug, Group.course_id == course.id)
     elif isinstance(group_id_or_slug, str):
-        where = Group.slug == group_id_or_slug
+        where = and_(Group.slug == group_id_or_slug, Group.course_id == course.id)
 
-    if is_privileged(current_user, course):
+    if privileged or is_privileged(current_user, course):
         return db.execute(select(Group).where(where)).scalar_one_or_none()
     else:
         return db.execute(
@@ -103,8 +107,8 @@ def get_group(course, group_id_or_slug):
         ).scalar_one_or_none()
 
 
-def get_group_or_fail(course, group_id_or_slug):
-    group = get_group(course, group_id_or_slug)
+def get_group_or_fail(course, group_id_or_slug, privileged = False):
+    group = get_group(course, group_id_or_slug, privileged)
     if group == None:
         raise ErrorResponse(
             "No such accessible group", group_id_or_slug, status_code=404
@@ -125,7 +129,8 @@ def is_privileged(user, course):
 @login_required
 def courses():
     if current_user.is_admin:
-        courses = db.execute(select(Course).order_by(Course.name)).scalars().all()
+        courses = db.execute(select(Course).order_by(
+            Course.name)).scalars().all()
     else:
         subq = (
             select(Enrollment)
@@ -133,7 +138,8 @@ def courses():
             .exists()
         )
         courses = (
-            db.execute(select(Course).where(subq).order_by(Course.name)).scalars().all()
+            db.execute(select(Course).where(subq).order_by(
+                Course.name)).scalars().all()
         )
 
     return [c.to_result(is_privileged(current_user, c)) for c in courses]
@@ -160,14 +166,16 @@ def course(course_spec):
 
 
 class EditCourseForm(FlaskForm):
-    name = StringField("Course name", [validators.regexp(VALID_DISPLAY_NAME_REGEX)])
+    name = StringField(
+        "Course name", [validators.regexp(VALID_DISPLAY_NAME_REGEX)])
     slug = StringField("Slug", [validators.regexp(VALID_SLUG_REGEX)])
     canvas_id = IntegerField("Canvas id")
     gitlab_path = StringField(
         "Gitlab path", [validators.regexp(VALID_SLUG_PATH_OR_EMPTY_REGEX)]
     )
     gitlab_student_path = StringField(
-        "Gitlab student path", [validators.regexp(VALID_SLUG_PATH_OR_EMPTY_REGEX)]
+        "Gitlab student path", [validators.regexp(
+            VALID_SLUG_PATH_OR_EMPTY_REGEX)]
     )
     expiry_date = StringField("Expiry Date")
 
@@ -265,7 +273,8 @@ def _sync_course(course: Course):
         cc: CanvasConnection = current_app.extensions["puffin_canvas_connection"]
         userlist = cc.get_users(course.external_id)
         for row in userlist:
-            acc = update_from_uib(db, row, course, changes=changes, sync_time=sync_time)
+            acc = update_from_uib(
+                db, row, course, changes=changes, sync_time=sync_time)
             if acc:
                 canvas_accs += 1
         result["num_canvas_users"] = canvas_accs
@@ -295,25 +304,27 @@ def _sync_course(course: Course):
 @login_required
 def course_users(course_spec):
     course = get_course_or_fail(course_spec)
-    
+
     if not is_privileged(current_user, course):
-        team = db.execute(select(Group).where(Group.course_id == course.id, Membership.group_id == Group.id, Membership.user_id == current_user.id), Group.kind == 'team').scalars().first()
-        if team:
-            where = [Membership.group_id == team.id, Membership.user_id == CourseUser.id, Membership.join_model != JoinModel.REMOVED]
-        else:
-            where = [CourseUser.id == current_user.id]
-    
-        print("Team: ", team, where)
+        alias = aliased(Membership)
+        # find all the groups the user is a member of
+        subq = select(Group.id).where(Group.course_id == course.id, 
+                                   alias.group_id == Group.id,
+                                   alias.user_id == current_user.id,)
+        # select users who are in one or more of those groups
+        where = [or_(select(Membership.user_id).where(Membership.user_id == CourseUser.id,
+                                                      Membership.__table__.c.group_id.in_(subq)).exists(),
+                     CourseUser.id == current_user.id)]
     else:
         where = []
 
     result = []
     if request.args.get("accounts", False) or request.form.get("accounts", False):
-        users = db.execute(
-            select(CourseUser, UserAccount)
+        query = (select(CourseUser, UserAccount)
             .where(CourseUser.course_id == course.id, CourseUser.id == UserAccount.id, *where)
-            .order_by((CourseUser.role == "student").desc(), CourseUser.lastname)
-        ).all()
+            .order_by((CourseUser.role == "student").desc(), CourseUser.lastname))
+        #print('query', query)
+        users = db.execute(query).all()
         logger.info("users: found %s records", len(users))
         for u, a in users:
             u = u.to_result(is_privileged(current_user, course))
@@ -323,15 +334,50 @@ def course_users(course_spec):
     else:
         users = (
             db.execute(
-                select(CourseUser)
-                .where(CourseUser.course_id == course.id, *where)
+                select(User, CourseUser)
+                .where(CourseUser.course_id == course.id, User.id == CourseUser.id, *where)
                 .order_by((CourseUser.role == "student").desc(), CourseUser.lastname)
             )
-            .scalars()
             .all()
         )
+
         logger.info("users: found %s records", len(users))
-        result = [u.to_result(is_privileged(current_user, course)) for u in users]
+        if request.args.get("details") or request.form.get("details"):
+            result = [__user_details(u, course) for (u,cu) in users]
+        else:
+            users = [cu for (u,cu) in users]
+            result = [u.to_result(is_privileged(current_user, course))
+                    for u in users]
+        
+    if request.args.get("csv") or request.form.get("csv") or request.accept_mimetypes.best_match(['application/json', 'text/html', 'text/csv']) == 'text/csv':
+        response = make_response()
+        for entry in result:
+            entry['sortable_name'] = f'{entry.get("lastname")}, {entry.get("firstname")}'
+            groups = entry.get('groups')
+            if groups != None:
+                entry['section'] = ','.join([g['group_slug'] for g in groups if g['kind'] == 'section' and g['role'] == 'student'])
+                entry['team'] = ','.join([g['group_slug'] for g in groups if g['kind'] == 'team' and g['role'] == 'student'])
+                if is_privileged(current_user, course):
+                    entry['review_team'] = ','.join([g['group_slug'] for g in groups if g['kind'] == 'team' and g['role'] == 'reviewer'])
+                del entry['groups']
+            for k in ['is_admin', 'locale', 'expiry_date', 'key']:
+                if k in entry:
+                    del entry[k]
+        with StringIO() as f:
+            fieldnames = [n  for n in result[0].keys() if not n.startswith('_')]
+            w = csv.DictWriter(f, fieldnames,extrasaction = 'ignore', dialect='excel')
+            w.writeheader()
+            w.writerows(result)
+            print('CSV: ', f.getvalue())
+            print(result[0].keys())
+            response.content_type = 'text/csv'
+            response.charset = 'utf-8'
+            response.data = f.getvalue()
+            response.headers.add('Content-Disposition', f'attachment; filename="{course.slug}_users.csv"')
+            print('response', response)
+            return response
+        
+        
     return result
 
 
@@ -339,15 +385,19 @@ def __user_details(user: User, course: Course):
     obj = user.to_json()
     obj["role"] = user.enrollment(course).role
     obj["groups"] = [
-        {"group_id": m.group.id, "group_slug": m.group.slug, "role": m.role}
-        for m in user.membership(course)
+        {"group_id": m.group.id, "group_slug": m.group.slug, "role": m.role, "kind":g.kind, "joined" : m.join_model.name}
+        for (m,g) in db.execute(select(Membership,Group).where(Membership.user_id == user.id,
+                                                               Membership.group_id == Group.id, 
+                                                               Group.course_id == course.id,
+                                                               Membership.join_model != JoinModel.REMOVED)).all()
     ]
     if not obj.get("locale") and current_app.config.get("DEFAULT_LOCALE"):
         obj["locale"] = current_app.config.get("DEFAULT_LOCALE")
-    canvas_account = user.account("uib.no")
+    canvas_account = user.account("canvas")
     if canvas_account:
         obj["canvas_id"] = canvas_account.external_id
-    gitlab_account = user.account("git.app.uib.no")
+        obj["canvas_username"] = canvas_account.username
+    gitlab_account = user.account("gitlab")
     if gitlab_account:
         obj["gitlab_id"] = gitlab_account.external_id
         obj["gitlab_username"] = gitlab_account.username
@@ -387,24 +437,26 @@ def get_course_groups(course_spec):
 
     if not priv:
         # restrict to groups the user is a member of
-        where = [] # Membership.group_id == Group.id, Membership.user_id == current_user.id, Membership.join_model != JoinModel.REMOVED]
+        where = []  # Membership.group_id == Group.id, Membership.user_id == current_user.id, Membership.join_model != JoinModel.REMOVED]
     else:
         where = []
-        
+
     if request.path.endswith('teams/'):
         where.append(Group.kind == 'team')
     # TODO: add other filters
-    
+
     groups = (
         db.execute(
-            select(Group).where(Group.course_id == course.id, *where).order_by(Group.name)
+            select(Group).where(Group.course_id ==
+                                course.id, *where).order_by(Group.name)
         )
         .scalars()
         .all()
     )
     logger.info("groups: found %s records", len(groups))
-      
+
     return [g.to_result(priv or current_user.is_member(g)) for g in groups]
+
 
 @bp.get("/<course_spec>/memberships/")
 @login_required
@@ -412,7 +464,10 @@ def get_course_memberships(course_spec):
     course = get_course_or_fail(course_spec)
     if not is_privileged(current_user, course):
         membership_alias = aliased(Membership)
-        where = [Membership.group_id == membership_alias.group_id, membership_alias.user_id == current_user.id, Membership.join_model != JoinModel.REMOVED]
+        where = [Membership.group_id == membership_alias.group_id,
+                 membership_alias.user_id == current_user.id, 
+                 Membership.join_model != JoinModel.REMOVED,
+                 or_(Membership.role != 'reviewer', Membership.user_id == current_user.id)] # TODO
     else:
         where = [Membership.join_model != JoinModel.REMOVED]
     members = (
@@ -429,11 +484,7 @@ def get_course_memberships(course_spec):
 
     return [m.to_json() for m in members]
 
-
 # e.g.: {"name":"Microissant","slug":"microissant", "join_model":"AUTO", "join_source":"gitlab(33690, students_only=True)", "kind":"team"}
-
-
-
 
 
 @bp.post("/<course_spec>/teams/")
@@ -443,9 +494,10 @@ def create_course_team(course_spec, group_id=None):
     course = get_course_or_fail(course_spec)
     if not is_privileged(current_user, course):
         raise ErrorResponse('access denied', status_code=403)
-    
+
     parent_id = (
-        db.execute(select(Group).filter_by(course=course, id=group_id)).scalar_one().id
+        db.execute(select(Group).filter_by(
+            course=course, id=group_id)).scalar_one().id
         if group_id
         else None
     )
@@ -495,7 +547,8 @@ def create_course_team(course_spec, group_id=None):
             db.add(obj)
             db.commit()
         except IntegrityError as e:
-            logger.error("Failed to add team: %s %s", type(e), e.orig, exc_info=True)
+            logger.error("Failed to add team: %s %s",
+                         type(e), e.orig, exc_info=True)
             return {
                 "status": "error",
                 "code": 400,
@@ -503,12 +556,15 @@ def create_course_team(course_spec, group_id=None):
             }, 400
         return obj.to_json()
     else:
-        raise ErrorResponse("Invalid request form", status_code=400, errors=form.errors)
+        raise ErrorResponse("Invalid request form",
+                            status_code=400, errors=form.errors)
 
 
 class CreateGroupForm(FlaskForm):
-    name = StringField("Group name", [validators.regexp(VALID_DISPLAY_NAME_REGEX)])
-    kind = StringField("Group kind", [validators.regexp(VALID_DISPLAY_NAME_REGEX)])
+    name = StringField(
+        "Group name", [validators.regexp(VALID_DISPLAY_NAME_REGEX)])
+    kind = StringField(
+        "Group kind", [validators.regexp(VALID_DISPLAY_NAME_REGEX)])
     join_model = SelectField(
         "Joining",
         choices=[(x.name, x.value.capitalize()) for x in JoinModel],
@@ -520,7 +576,8 @@ class CreateGroupForm(FlaskForm):
 
 
 class CreateTeamForm(FlaskForm):
-    name = StringField("Team name", [validators.regexp(VALID_DISPLAY_NAME_REGEX)])
+    name = StringField(
+        "Team name", [validators.regexp(VALID_DISPLAY_NAME_REGEX)])
     project_path = StringField(
         "Team project", [validators.regexp(VALID_SLUG_PATH_REGEX)]
     )
@@ -531,6 +588,193 @@ class CreateTeamForm(FlaskForm):
     submit = SubmitField("Submit")
 
 
+@bp.get("/<course_spec>/teams/reviews/assign/<int:user_id>")
+@login_required
+def team_project_review_get_assigned(course_spec, user_id = None):
+    course = get_course_or_fail(course_spec)
+    user_id = user_id if is_privileged(current_user, course) and user_id != None else current_user.id
+    
+    assigned = db.execute(select(Group).where(Membership.user_id == user_id,
+                                              Membership.role == 'reviewer',
+                                              Membership.group_id == Group.id)).scalars().all()
+    
+    return [t.to_result(True) for t in assigned]
+
+@bp.post("/<course_spec>/teams/reviews/assign/<int:user_id>")
+@login_required
+def team_project_review_assign(course_spec, user_id = None):
+    course = get_course_or_fail(course_spec)
+    user_id = user_id if is_privileged(current_user, course) and user_id != None else current_user.id
+    user : User = db.get(User, user_id)
+    #if is_privileged(current_user, course):
+    #    raise ErrorResponse('Manual review assignment not implemented yet')
+
+    already_assigned = db.execute(select(Group).where(Membership.user_id == user_id, Membership.role == 'reviewer', Membership.group_id == Group.id)).scalars().all()
+    if len(already_assigned) != 0:
+        raise ErrorResponse(f'You are already assigned as reviewer for {", ".join([repr(g.name) for g in already_assigned])}')
+    
+    user_teams = [m.group_id for m in user.memberships]
+    print('user_teams', user_teams)
+    teams:list = db.execute(select(Group).where(Group.course_id == course.id,
+                                                Group.kind == 'team',
+                                                )).scalars().all()
+    reviewers = db.execute(select(Membership).where(Membership.group_id == Group.id,
+                                                  Group.course_id == course.id,
+                                                  Membership.role == 'reviewer',
+                                                  Group.kind == 'team')).scalars().all()
+    team_reviewers = {team.id:[] for team in teams}
+    for r in reviewers:
+        team_reviewers[r.group_id].append(r.user_id)
+    least = min([len(l) for l in team_reviewers.values()])
+    eligible_teams = [t for t in teams if len(team_reviewers[t.id]) == least and t.id not in user_teams]
+    if len(eligible_teams) > 0:
+        team : Group = random.choice(eligible_teams)
+        print('teams', least,sorted([t.id for t in eligible_teams]), team_reviewers)
+        print('picked team', team.id)
+        print('reviewers', list(reviewers))
+        n_reviewers = len(team_reviewers[team.id])
+        logger.info('Reviewer assignment sanity check: %s, %d=%d', team.memberships, least, n_reviewers)
+        if user_id in [m.group_id for m in team.memberships] or n_reviewers != least:
+            logger.error('Reviewer assignment sanity check: %s, %s=%s', team.memberships, least, n_reviewers)
+            raise ErrorResponse('bug in reviewer assigment!')
+        membership, created = get_or_define(db, Membership, {'group_id': team.id, 'user_id': user.id},
+                                                {'role': 'reviewer', 'join_model': JoinModel.CLOSED})
+        db.add(membership)
+        db.commit()
+        return team.to_json()
+    
+    raise ErrorResponse('No suitable team project found')
+
+
+@bp.post("/<course_spec>/teams/check_uploads")
+@login_required
+def team_check_uploads(course_spec):
+    course = get_course_or_fail(course_spec)
+
+    if not is_privileged(current_user, course):
+        raise ErrorResponse('access denied', status_code=403)
+
+    teams = db.execute(select(Group).where(Group.course_id == course.id, Group.kind == 'team')).scalars().all()
+    
+    for t in teams:
+        if 'share' not in t.json_data:
+            t.json_data['share'] = {}
+            
+        #path = url_for('app.courses.team_get_file', course_spec=course_spec, path=f'{t.slug}.jar')
+        name = f'{t.slug}.jar'
+        print(name, os.path.join(current_app.config['APP_DOWNLOAD_DIR'], f'{t.slug}.jar'))
+        if os.path.exists(os.path.join(current_app.config['APP_DOWNLOAD_DIR'], f'{t.slug}.jar')):
+            t.json_data['share']['jar_file'] = name
+            t.json_data['share']['share_jar'] = True
+            db.add(t)
+        #path = url_for('app.courses.team_get_file', course_spec=course_spec, path=f'{t.slug}.zip')
+        name = f'{t.slug}.zip'
+        if os.path.exists(os.path.join(current_app.config['APP_DOWNLOAD_DIR'], f'{t.slug}.zip')):
+            t.json_data['share']['src_file'] = name
+            t.json_data['share']['share_src'] = False
+            db.add(t)
+    db.commit()
+    return {}
+
+@bp.get("/<course_spec>/teams/<group_spec>/files/<path>")
+@login_required
+def team_get_file(course_spec, group_spec, path):
+    course = get_course_or_fail(course_spec)
+    group = get_group_or_fail(course, group_spec, True)
+    
+    logger.info('Get file: user=%s file=%s', current_user.email, path)
+    share_file = None
+    mime_type = None
+    if path == f'{group.slug}.jar':
+        share_file = 'share_jar'
+        mime_type = 'application/java-archive'
+    elif path == f'{group.slug}.zip':
+        share_file = 'share_src'
+        mime_type = 'application/zip'
+        
+    def has_access():
+        if is_privileged(current_user, course):
+            logger.info('Get file: has access due to privilege')
+            return True
+        if db.execute(select(Membership.id).where(Membership.group_id == group.id, Membership.user_id == current_user.id,
+                                        Membership.join_model != JoinModel.REMOVED)).first() != None:
+            logger.info('Get file: has access due to group membership')
+            return True
+        if group.json_data.get('share', {}).get(share_file, False):
+            logger.info('Get file: has access due to sharing')
+            return True
+    
+    if not share_file:
+        raise ErrorResponse('file not found', status_code=404)
+    if has_access():
+        response = make_response()
+        response.mimetype = mime_type
+        response.headers.add('X-Accel-Redirect', os.path.join(current_app.config.get('APP_PREFIX', '/'), '_internal/downloads', path))
+        response.cache_control.private = True
+        #response.headers.add('Cache-Control', 'private')
+        print(response.headers)
+        return response
+    else:
+        raise ErrorResponse('access denied', status_code=403)
+        
+class PutTeamForm(FlaskForm):
+    share_src = BooleanField("Share source code")
+    share_jar = BooleanField("Share JAR file")
+    
+@bp.put("/<course_spec>/teams/<group_spec>/share")
+@login_required
+def team_put(course_spec, group_spec):
+    course = get_course_or_fail(course_spec)
+    group = get_group_or_fail(course, group_spec)
+
+    if group.kind != 'team':
+        raise ErrorResponse('not a team')
+    form = PutTeamForm()
+    
+    if form.validate():
+        if 'share' not in group.json_data:
+            group.json_data['share'] = {}
+        if form.share_jar.data != None:
+            group.json_data['share']['share_jar'] = not not form.share_jar.data
+        if form.share_src.data != None:
+            group.json_data['share']['share_src'] = not not form.share_src.data
+        # trigger update
+        group.json_data['share'] = group.json_data['share'].copy()
+        db.add(group)
+        db.commit()
+        return group.to_json()
+    else:
+        return {
+            "status": "error",
+            "code": 400,
+            "message": "Invalid request form",
+            "errors": form.errors,
+        }, 400
+    
+class PutFileForm(FlaskForm):
+    allow_read = SelectMultipleField(
+        "Allow read",
+        choices=['admin','self','group','course','all'],
+    )
+    allow_write = SelectMultipleField(
+        "Allow write",
+        choices=['admin','self','group','course','all'],
+    )
+  
+
+@bp.put("/<course_spec>/teams/<group_spec>/files/<path>")
+@login_required
+def team_put_file_TODO(course_spec, group_spec, path):
+    course = get_course_or_fail(course_spec)
+    group = get_group_or_fail(course, group_spec)
+
+    if not is_privileged(current_user, course):
+        raise ErrorResponse('access denied', status_code=403)
+    form = PutFileForm()
+    print('team_put_file', form._fields, form.allow_read.data, form.allow_write.data)
+    
+    return {'status':'ok', 'allow_read':allow_read, 'allow_write':allow_write, 'json_data':group.json_data}
+ 
 @bp.post("/<course_spec>/groups/")
 # @bp.get('/<course_spec>/groups/form')
 @bp.post("/<course_spec>/groups/<int:group_id>/groups/")
@@ -541,7 +785,6 @@ def create_course_group(course_spec, group_id=None):
 
     if not is_privileged(current_user, course):
         raise ErrorResponse('access denied', status_code=403)
-
 
     parent = (
         db.execute(
@@ -604,8 +847,9 @@ def create_course_group(course_spec, group_id=None):
 @bp.get("/<course_spec>/groups/<group_spec>")
 @login_required
 def course_group(course_spec, group_spec):
-    course = get_course_or_fail(course_spec) # limited to members or privilege
-    group = get_group_or_fail(course, group_spec) # limited to members or privilege
+    course = get_course_or_fail(course_spec)  # limited to members or privilege
+    # limited to members or privilege
+    group = get_group_or_fail(course, group_spec)
 
     return group.to_json()
 
@@ -614,8 +858,9 @@ def course_group(course_spec, group_spec):
 @login_required
 def course_group_users(course_spec, group_spec):
     result = []
-    course = get_course_or_fail(course_spec) # limited to members or privilege
-    group = get_group_or_fail(course, group_spec) # limited to members or privilege
+    course = get_course_or_fail(course_spec)  # limited to members or privilege
+    # limited to members or privilege
+    group = get_group_or_fail(course, group_spec)
 
     if request.args.get("details", "false") == "true" and is_privileged(current_user, course):
         for m in group.memberships:
@@ -624,7 +869,8 @@ def course_group_users(course_spec, group_spec):
                 u["role"] = m.role
                 result.append(u)
     else:
-        result = [m.to_json() for m in group.memberships if m.join_model != JoinModel.REMOVED]
+        result = [m.to_json()
+                  for m in group.memberships if m.join_model != JoinModel.REMOVED]
     logger.info("group users: found %s records", len(result))
     return result
 
@@ -641,14 +887,16 @@ def course_groups_sync_one(course_spec, group_spec):
         raise ErrorResponse("Access denied", status_code=403)
 
     sync_time = now()
-    lastlog = db.execute(select(AuditLog).order_by(AuditLog.id.desc())).scalar()
+    lastlog = db.execute(select(AuditLog).order_by(
+        AuditLog.id.desc())).scalar()
 
     if not group.join_source:
-        raise ErrorResponse("no join source configured", group, status_code=200)
+        raise ErrorResponse("no join source configured",
+                            group, status_code=200)
 
     def gitlab_sync(project: str, students_only=True):
         gc: GitlabConnection = current_app.extensions["puffin_gitlab_connection"]
-        (members,unmapped) = gc.project_members_incl_unmapped(db, project)
+        (members, unmapped) = gc.project_members_incl_unmapped(db, project)
         logger.info("gitlab_sync(%s,%s)", project, members)
         # TODO: auto-remove members when they're removed from project
         for m in members:
@@ -738,7 +986,8 @@ def canvas_courses():
 def normalize_project_path(path: str | int, course: Course):
     root = course.json_data.get("gitlab_path")
     if not root:
-        raise ErrorResponse("No gitlab path configured for course", status_code=404)
+        raise ErrorResponse(
+            "No gitlab path configured for course", status_code=404)
     if path.isdigit():
         return (None, None, int(path))
 
@@ -764,7 +1013,8 @@ def get_gitlab_project(course_spec, path):
     gitlab_acc = user.account("gitlab")
     en = user.enrollment(course)
     if (
-        gitlab_acc and gitlab_acc.external_id and en.role in ["admin", "ta", "teacher"]
+        gitlab_acc and gitlab_acc.external_id and en.role in [
+            "admin", "ta", "teacher"]
     ) or user.is_admin:
         ns, name, id = normalize_project_path(path, course)
         proj = db.execute(
@@ -778,7 +1028,8 @@ def get_gitlab_project(course_spec, path):
         if not proj:
             gc: GitlabConnection = current_app.extensions["puffin_gitlab_connection"]
             try:
-                gl_proj = gc.gl.projects.get(id if id else posixpath.join(ns, name))
+                gl_proj = gc.gl.projects.get(
+                    id if id else posixpath.join(ns, name))
                 if not (
                     user.is_admin
                     or gl_proj.members_all.get(gitlab_acc.external_id).access_level
@@ -832,11 +1083,13 @@ def get_gitlab_group(course_spec, path):
     gitlab_acc = user.account("gitlab")
     en = user.enrollment(course)
     if (
-        gitlab_acc and gitlab_acc.external_id and en.role in ["admin", "ta", "teacher"]
+        gitlab_acc and gitlab_acc.external_id and en.role in [
+            "admin", "ta", "teacher"]
     ) or user.is_admin:
         root = course.json_data.get("gitlab_path")
         if not root:
-            raise ErrorResponse("No gitlab path configured for course", status_code=404)
+            raise ErrorResponse(
+                "No gitlab path configured for course", status_code=404)
         gc: GitlabConnection = current_app.extensions["puffin_gitlab_connection"]
         try:
             group = (

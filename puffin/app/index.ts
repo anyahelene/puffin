@@ -2,6 +2,7 @@ import nearley from 'nearley';
 import { Settings } from '../borb/Settings'
 import { SubSystem } from '../borb/SubSystem'
 import { BorbFrame, BorbPanelBuilder } from '../borb/Frames';
+import { BorbButton, BorbCommand } from '../borb/Buttons';
 import { Styles } from '../borb/Styles';
 Styles.pathPrefix = 'static/';
 import grammar from '../qlang/qlang.ne';
@@ -124,6 +125,7 @@ interface TilingWM {
 }
 puffin.TilingWM = TilingWM;
 puffin.TilingWindow = TilingWindow;
+puffin.BorbButton = BorbButton;
 console.log('Hello!!');
 const wm = new TilingWM('mid', 32, 16);
 puffin.wm = wm;
@@ -170,7 +172,7 @@ function enterPressed(ev: KeyboardEvent) {
     }
 }
 
-SubSystem.waitFor('dom').then(async () => {
+async function initialize() {
     activate_flashes();
     if (document.querySelector('body').dataset.endpoint !== 'app.index_html')
         return;
@@ -214,6 +216,7 @@ SubSystem.waitFor('dom').then(async () => {
                               ><span></span
                           ></span>`
                     : ''}
+                    ${self.id != self.real_id ? html`<a class="button line-through" title="deimpersonate" href="login/sudone">🥸</a>` : ''}
                 `,
         );
     };
@@ -233,6 +236,7 @@ SubSystem.waitFor('dom').then(async () => {
         console.error('Failed to set active course', e);
     }
     const is_privileged = Course.current_user.course_user?.is_privileged;
+    modify_table('Member', 'join_model', entry => {entry.hide = true})
     if (self.is_admin || is_privileged) {
         console.warn('Choosing admin view', 'is_admin=', self.is_admin, 'is_privileged=', is_privileged, 'role=', Course.current_user.course_user?.role);
 
@@ -251,6 +255,7 @@ SubSystem.waitFor('dom').then(async () => {
         (document.querySelector('#frame3') as BorbFrame).queueUpdate(true);
         CourseView.set_course_view();
     } else {
+        modify_table('Member', 'join_model', entry => {entry.hide = true})
         const debug = puffin.debug['console'] ? html`<div><button type="button" onclick=${() => console.log(this)}>Debug</button></div>` : '';
         const user_panel = new BorbPanelBuilder()
             .frame('frame2')
@@ -262,11 +267,17 @@ SubSystem.waitFor('dom').then(async () => {
         const team = user?.team[0];
         if (user && team) {
             console.warn('Choosing user view', 'user=', user, 'team=', team);
+            const review_teams = user.findGroups({kind:'team',role:'reviewer'});
+            const review_info = review_teams.length > 0 ?
+                html`<p><b>Review assignments:</b> 
+                <ul>${review_teams.map(t => html`<li>${t.as_link()}: <em>${t.json_data.project_name}</em></li>`)}</ul>` 
+                : '';
             render(
                 user_panel,
                 html`<h2>${user.firstname} ${user.lastname}</h2>
                  <b>Team:</b><a href="${gitlab_url(team.json_data.project_path)}" target="_blank"
                   > ${team.json_data.project_name} – [${team.json_data.project_path}]</a>
+                  ${review_info}
                   ${debug}`,
             );
             const team_panel = new BorbPanelBuilder()
@@ -287,10 +298,13 @@ SubSystem.waitFor('dom').then(async () => {
     document
         .querySelector('#page-home')
         .appendChild(
-            html.node`<input id="retro" onchange=${retro} ?checked=${document.querySelector('body').classList.contains('retro')} type="checkbox" /><label for="retro">Go 8-bit</label>`,
+            html.node`<borb-button id="retro" onchange=${retro} ?checked=${document.querySelector('body').classList.contains('retro')} type="switch" data-text="Go 8-bit" />`,
         );
 
-});
+}
+
+SubSystem.waitFor('dom').then(() => queueMicrotask(initialize));
+
 //import styles from '../css/common.scss';
 //console.log(styles)
 
