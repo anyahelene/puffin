@@ -259,7 +259,7 @@ def before_request():
 def after_request(response:Response):
     print('after requset', current_user)
     if current_user:
-        response.headers.add('X-User', current_user.email)
+        response.headers.add('X-User', getattr(current_user, "email", None))
     return response
     
 @app.teardown_appcontext

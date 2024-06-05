@@ -5,7 +5,7 @@ import { Course, Group, User, tables } from './model';
 export let csrf_token: string = undefined;
 
 export const puffin: Record<string, object> = {
-    debug: { console: false }
+    debug: { console: false },
 };
 
 export function modify_table(
@@ -24,13 +24,9 @@ export function modify_table(
         }
     });
 }
-export function add_to_table(
-    table: string | ColumnSpec[],
-    entry_name: string,
-    entry: ColumnSpec
-) {
+export function add_to_table(table: string | ColumnSpec[], entry_name: string, entry: ColumnSpec) {
     const _table = Array.isArray(table) ? table : (tables[table] as ColumnSpec[]);
-    entry.name = entry.name  || entry_name;
+    entry.name = entry.name || entry_name;
     _table.push(entry);
     return _table;
 }
@@ -42,16 +38,18 @@ tables['FullUser'].push({ name: 'section', type: 'group[]', filter: '' });
 modify_table('FullUser', 'canvas_username', (entry) => {
     entry.mapping = (field, obj, spec) =>
         field
-            ? html.node`<a title=${obj.canvas_id
-                } class="external" href="${`https://mitt.uib.no/courses/${Course.current.external_id}/users/${obj.canvas_id}`}" target="_blank">${field}</a>`
+            ? html.node`<a title=${
+                  obj.canvas_id
+              } class="external" href="${`https://mitt.uib.no/courses/${Course.current.external_id}/users/${obj.canvas_id}`}" target="_blank">${field}</a>`
             : '';
     entry.type = 'custom';
 });
 modify_table('FullUser', 'gitlab_username', (entry) => {
     entry.mapping = (field, obj, spec) =>
         field
-            ? html.node`<a title=${obj.gitlab_id
-                } class="external" href="${`https://git.app.uib.no/${obj.gitlab_username}/`}" target="_blank">${field}</a>`
+            ? html.node`<a title=${
+                  obj.gitlab_id
+              } class="external" href="${`https://git.app.uib.no/${obj.gitlab_username}/`}" target="_blank">${field}</a>`
             : '';
     entry.type = 'custom';
 });
@@ -119,15 +117,18 @@ export async function request(
     const get_result = async (res: Response) => {
         const blob = await res.blob();
 
-        if(blob.type === 'application/json') {
+        if (blob.type === 'application/json') {
             return JSON.parse(await blob.text());
         } else {
-            const result = { status: res.ok ? 'ok' : 'error', data:await blob.text(), status_code:res.status}
-            console.error('hmm... should this be JSON, maybe?', result)
+            const result = {
+                status: res.ok ? 'ok' : 'error',
+                data: await blob.text(),
+                status_code: res.status,
+            };
+            console.error('hmm... should this be JSON, maybe?', result);
             return result;
         }
-
-    }
+    };
     if (params) {
         if (method === 'GET' || method === 'HEAD' || use_url_params) {
             const usp = new URLSearchParams();
@@ -152,13 +153,11 @@ export async function request(
             console.warn('Resetting CSRF token');
             csrf_token = undefined;
             return request(endPoint, method, params);
-        }
-        else if (result.login_required && result.login_url) {
+        } else if (result.login_required && result.login_url) {
             // TODO: use popup window
             window.location.replace(result.login_url);
-        }
-        else if (!allow_error) {
-            show_flash(result.message, "error");
+        } else if (!allow_error) {
+            show_flash(result.message, 'error');
             console.error('Request failed', result, '\nrequest:', req, '\nresponse:', res);
             throw new RequestError(res, result.message || 'Unknown error', result);
         }
@@ -199,7 +198,7 @@ function keys(obj) {
     return keys;
 }
 export function user_emails(users: User[]) {
-    return users.map(u => `${u.firstname} ${u.lastname} <${u.email}>`).join(', ');
+    return users.map((u) => `${u.firstname} ${u.lastname} <${u.email}>`).join(', ');
 }
 
 export function handle_internal_link(ev: MouseEvent) {
@@ -246,7 +245,7 @@ function display_obj(
         if (spec && spec.filter && g.kind !== spec.filter) return;
         if (result.length > 0) comma = ', ';
         if (typeof g.as_link === 'function') {
-            result.push(g.as_link())
+            result.push(g.as_link());
         }
     });
 
@@ -313,10 +312,9 @@ export function to_table(
         );
     //console.log(type, more_types, columns);
     let allbox: HTMLInputElement = null;
-    const checkboxes: HTMLInputElement[] = [];
-    const selected: Set<HTMLInputElement> = new Set();
+    const checkboxes: [HTMLInputElement, Record<string, any>][] = [];
     const select = (ev: Event) => {
-        const checked = checkboxes.filter((b) => b.checked);
+        const checked = checkboxes.filter(([b, _]) => b.checked);
         console.log('select', checked.length, checkboxes.length, ev);
         if (checked.length === 0) allbox.checked = false;
         else if (checked.length === checkboxes.length) allbox.checked = true;
@@ -327,7 +325,7 @@ export function to_table(
         allbox.title = `${checked.length} of ${checkboxes.length} selected`;
     };
     if (puffin.debug['console']) {
-        const elt = cell('', 'th')
+        const elt = cell('', 'th');
         elt.classList.add('center', 'no-sort');
     }
     if (selectable) {
@@ -335,9 +333,10 @@ export function to_table(
         allbox.type = 'checkbox';
         allbox.name = '__all__';
         allbox.addEventListener('change', (ev) => {
-            checkboxes.forEach((b) => (b.checked = allbox.checked));
-            allbox.title = `${allbox.checked ? checkboxes.length : 0} of ${checkboxes.length
-                } selected`;
+            checkboxes.forEach(([b, _]) => (b.checked = allbox.checked));
+            allbox.title = `${allbox.checked ? checkboxes.length : 0} of ${
+                checkboxes.length
+            } selected`;
         });
         const elt = cell(allbox, 'th');
         elt.classList.add('center', 'no-sort');
@@ -352,14 +351,16 @@ export function to_table(
     thead.appendChild(currentRow);
 
     currentRow = element(null, 'tr');
+    type checkboxEntry = [HTMLInputElement, Record<string, any>];
+    const checkboxes2: checkboxEntry[] = [];
     tdata.forEach((row) => {
         //console.log(row);
         nextRow();
         currentRow.dataset.id = `${row.id}`;
         if (puffin.debug['console']) {
             const debug = () => console.log(row);
-            const button = html.node`<button class="center no-sort" type="button" onclick=${debug}>🖨️</button>`
-            cell(button, 'td')
+            const button = html.node`<button class="center no-sort" type="button" onclick=${debug}>🖨️</button>`;
+            cell(button, 'td');
         }
         if (selectable) {
             const box = document.createElement('input');
@@ -367,7 +368,7 @@ export function to_table(
             box.name = `${row.id}`;
             box.addEventListener('input', select);
             box.addEventListener('click', (ev) => console.log(ev));
-            checkboxes.push(box);
+            checkboxes.push([box, row]);
             const elt = cell(box, 'td');
             elt.classList.add('center', 'no-sort');
             elt.dataset.type = 'bool';
@@ -420,6 +421,11 @@ export function to_table(
     const foot = element(`${tdata.length}`, 'td') as HTMLTableCellElement;
     foot.colSpan = currentRow.childElementCount;
     result.push(element(element(foot, 'tr'), 'tfoot'));
+
+    if (type !== 'any') {
+        window[`getSelection_${type}`] = () =>
+            checkboxes.filter(([b, _]) => b.checked).map(([_, r]) => r);
+    }
     return result;
 }
 
