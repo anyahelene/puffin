@@ -236,16 +236,16 @@ async function initialize() {
         console.error('Failed to set active course', e);
     }
     const is_privileged = Course.current_user.course_user?.is_privileged;
-    modify_table('Member', 'join_model', entry => {entry.hide = true})
+    modify_table('Member', 'join_model', entry => { entry.hide = true })
     if (self.is_admin || is_privileged) {
         console.warn('Choosing admin view', 'is_admin=', self.is_admin, 'is_privileged=', is_privileged, 'role=', Course.current_user.course_user?.role);
 
-        if(self.is_admin) {
+        if (self.is_admin) {
             add_to_table('FullUser', 'impersonate', {
                 head: ' ',
-                mapping : (field, obj, spec) =>
-                         html.node`<a class="button" title="impersonate" href="${`login/sudo/${obj.email}`}">🥸</a>`,
-                type : 'custom'
+                mapping: (field, obj, spec) =>
+                    html.node`<a class="button" title="impersonate" href="${`login/sudo/${obj.email}`}">🥸</a>`,
+                type: 'custom'
             });
         }
         puffin.debug['console'] = true;
@@ -255,7 +255,7 @@ async function initialize() {
         (document.querySelector('#frame3') as BorbFrame).queueUpdate(true);
         CourseView.set_course_view();
     } else {
-        modify_table('Member', 'join_model', entry => {entry.hide = true})
+        modify_table('Member', 'join_model', entry => { entry.hide = true })
         const debug = puffin.debug['console'] ? html`<div><button type="button" onclick=${() => console.log(this)}>Debug</button></div>` : '';
         const user_panel = new BorbPanelBuilder()
             .frame('frame2')
@@ -266,33 +266,45 @@ async function initialize() {
         const user = Course.current?.usersById[self.id];
         const team = user?.team[0];
         if (user && team) {
-            console.warn('Choosing user view', 'user=', user, 'team=', team);
-            const review_teams = user.findGroups({kind:'team',role:'reviewer'});
-            const review_info = review_teams.length > 0 ?
-                html`<p><b>Review assignments:</b> 
-                <ul>${review_teams.map(t => html`<li>${t.as_link()}: <em>${t.json_data.project_name}</em></li>`)}</ul>` 
-                : '';
-            render(
-                user_panel,
-                html`<h2>${user.firstname} ${user.lastname}</h2>
+            const request_review = async () => {
+                const result = await request(`courses/${Course.current.external_id}/teams/reviews/assign/`, 'POST', {}, false, true);
+                console.warn(result);
+                if (result.status === 'error') {
+                    show_flash(result, 'error');
+                } else {
+                    await Course.current.updateMemberships();
+                    await Course.current.updateUsers();
+                    redraw();
+                }
+
+            }
+            const redraw = () => {
+                console.warn('Choosing user view', 'user=', user, 'team=', team);
+                const review_teams = user.findGroups({ kind: 'team', role: 'reviewer' });
+                const review_info = review_teams.length > 0 ?
+                    html`<p><b>Review assignments:</b> 
+                <ul>${review_teams.map(t => html`<li>${t.as_link()}: <em>${t.json_data.project_name}</em></li>`)}</ul>`
+                    : html`<p><button type="button" onclick=${request_review}>Request code review assignment</button></p>`;
+                const teamDiv = document.createElement('div');
+                team.display(teamDiv);
+                render(
+                    user_panel,
+                    html`<div class="two-column"><div><h2>${user.firstname} ${user.lastname}</h2>
                  <b>Team:</b><a href="${gitlab_url(team.json_data.project_path)}" target="_blank"
                   > ${team.json_data.project_name} – [${team.json_data.project_path}]</a>
                   ${review_info}
-                  ${debug}`,
-            );
-            const team_panel = new BorbPanelBuilder()
-                .frame('frame3')
-                .panel('div', 'team_panel')
-                .title(team.name)
-                .select()
-                .done();
-            team.display(team_panel);
+                  ${debug}</div>
+                  ${teamDiv}</div>`,
+                );
+            }
+            redraw();
+            CourseView.open_team_list();
         } else {
             console.warn('Dunno what to do...', 'user=', user, 'team=', team);
         }
     }
 
-    const retro = (ev:Event) => {
+    const retro = (ev: Event) => {
         document.querySelector('body').classList.toggle('retro', (ev.target as HTMLInputElement).checked);
     };
     document

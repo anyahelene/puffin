@@ -1,5 +1,6 @@
 import datetime
 import enum
+import json
 from typing import Optional, Type
 from typing_extensions import Annotated
 from sqlalchemy import ForeignKey, ForeignKeyConstraint, UniqueConstraint, inspect, text, JSON
@@ -83,7 +84,7 @@ class AuditLog(Base):
             return f"UPDATE(table={self.table_name}, key={self.row_id}, data={self.new_data}, was={self.old_data})"
         elif self.type == LogType.DELETE:
             return f"DELETE(table={self.table_name}, key={self.row_id}, was={self.old_data})"
-        return self.to_json()
+        return json.dumps(self.to_json())
 
 
 class Id(Base):
@@ -149,7 +150,7 @@ class Course(Base):
               'form': {'slugify': 'name'}})
     expiry_date: Mapped[Optional[datetime]] = mapped_column(
         info={'view': {'course_user': False}})
-    json_data = mapped_column(MutableDict.as_mutable(JSON), server_default="{}", nullable=False,
+    json_data = mapped_column(MutableDict.as_mutable(JSON), server_default="{}", nullable=False, # type: ignore
                               info={'view': {'course_user': False, 'full_user': False}})
 
     info = {
@@ -160,7 +161,8 @@ class Course(Base):
             'course_code': 'str',
             'locale': 'locale',
             'sis_course_id': 'str',
-            'time_zone': 'timezone'
+            'time_zone': 'timezone',
+            'canvas_team_category' : 'int'
         }
     }
 
@@ -186,7 +188,7 @@ class Group(Base):
     join_model: Mapped[JoinModel] = mapped_column(default=JoinModel.RESTRICTED)
     join_source: Mapped[Optional[str]] = mapped_column(
         doc="E.g. gitlab(project_id)", default=None)
-    json_data = mapped_column(MutableDict.as_mutable(JSON), server_default="{}", nullable=False)
+    json_data = mapped_column(MutableDict.as_mutable(JSON), server_default="{}", nullable=False) # type: ignore
     info = {
         'access': {'read': 'course:member', 'sync': 'member'},
         'public_json' : ['project_name','public_info','share']
@@ -233,6 +235,7 @@ class Enrollment(Base):
     role: Mapped[str] = mapped_column(
         info={'icons': ROLE_ICONS,
               'access': {'write': 'admin', 'read': 'peer'}})
+    join_model: Mapped[JoinModel] = mapped_column(server_default='AUTO')
 
     info = {
         'access': {'read': 'course:member'}
@@ -361,7 +364,7 @@ class Assignment(Base):
     grade_by_date: Mapped[Optional[datetime]] = \
         mapped_column(info={'form': True},
                       doc='Date when grading is due')
-    json_data = mapped_column(MutableDict.as_mutable(JSON), nullable=False, server_default='{}')
+    json_data = mapped_column(MutableDict.as_mutable(JSON), nullable=False, server_default='{}') # type: ignore
 
     info = {
         'access': {'read': 'course:member', 'write': 'course:teacher'}
@@ -390,7 +393,7 @@ class StudentAssignment(Base):
     project_id: Mapped[Optional[int]] = mapped_column(ForeignKey('project.id'))
     canvas_id: Mapped[Optional[str]] = mapped_column(unique=True)
     due_date: Mapped[Optional[datetime]] = mapped_column()
-    json_data = mapped_column(MutableDict.as_mutable(JSON), server_default="{}", nullable=False)
+    json_data = mapped_column(MutableDict.as_mutable(JSON), server_default="{}", nullable=False) # type: ignore
 
     info = {
         'access': {'read': ['user', 'course:teacher'], 'write': 'course:teacher', 'sync': ['user', 'course:teacher']}
@@ -414,7 +417,7 @@ class Project(Base):
     gitlab_id: Mapped[Optional[str]] = mapped_column(unique=True)
     submitted_ref: Mapped[Optional[str]] = mapped_column(
         doc="Identifies actual submission (a tag, branch or commit id)")
-    json_data = mapped_column(MutableDict.as_mutable(JSON), server_default="{}", nullable=False)
+    json_data = mapped_column(MutableDict.as_mutable(JSON), server_default="{}", nullable=False) # type: ignore
 
     info = {
         'access': {'read': ['owner', 'course:teacher'],
@@ -450,8 +453,8 @@ class LastSync(Base):
     sync_outgoing: Mapped[Optional[datetime]]
 
     @staticmethod
-    def set_sync(session: Session, obj: Base, sync_incoming: datetime = None, sync_outgoing: datetime = None):
-        data = {'obj_id': obj.id, 'obj_type': obj.__tablename__}
+    def set_sync(session: Session, obj: Base, sync_incoming: datetime|None = None, sync_outgoing: datetime|None = None):
+        data = {'obj_id': obj.id, 'obj_type': obj.__tablename__} # type: ignore
         if sync_incoming:
             data['sync_incoming'] = sync_incoming
         if sync_outgoing:

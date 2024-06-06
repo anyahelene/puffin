@@ -18,7 +18,7 @@ const config = {
     context: path.resolve(__dirname, 'puffin'),
     plugins: [
         new MiniCssExtractPlugin({ filename: '[name].css' }),
-        //new FaviconsWebpackPlugin('../static/assets/puffin_red.svg'),
+        new FaviconsWebpackPlugin('../static/img/puffin_red.svg'),
         new HtmlWebpackPlugin({
             filename: 'templates/index.html',
             template: '../templates/page.html',

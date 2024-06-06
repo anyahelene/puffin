@@ -52,10 +52,10 @@ def view(name, metadata, selectable):
     sa.event.listen(
         metadata,
         "after_create",
-        CreateView(name, selectable).execute_if(callable_=view_doesnt_exist),
+        CreateView(name, selectable).execute_if(callable_=view_doesnt_exist), # type: ignore
     )
     sa.event.listen(
-        metadata, "before_drop", DropView(name).execute_if(callable_=view_exists)
+        metadata, "before_drop", DropView(name).execute_if(callable_=view_exists) # type: ignore
     )
     return t
 

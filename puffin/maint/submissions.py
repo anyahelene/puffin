@@ -7,19 +7,19 @@ from puffin.db.database import init, db_session
 from puffin.db.model_tables import  Assignment, User, Account, Course
 from puffin.db.model_util import update_from_uib, get_or_define
 from puffin.app.app import app
-from puffin.canvas.users import CanvasConnection
+from puffin.canvas.canvas import CanvasConnection
 from puffin.app.view_users import get_user, get_user_or_fail
 import gitlab
 import re
 from puffin.gitlab.users import GitlabConnection
 
-from puffin.util.util import intify
+from puffin.util.util import intify 
 
 def url_to_project_path(url):
     if url != None:
         url = re.sub('^https://git.app.uib.no/', '', url)
         url = re.sub('/-/.*$','',url)
-        url = re.sub('\.git$','',url)
+        url = re.sub('\\.git$','',url)
         url = re.sub('/+$','',url)
     return url
 
@@ -52,11 +52,12 @@ def autofill_submissions(subs):
                 print('gitlab user not found:', sub)
 
 def check_membership(resource: GitlabProject, user : User, access_level : int):
-    user_id = user.account('gitlab').external_id
-    user_name = user.account('gitlab').username
+    account : Account = user.account('gitlab') # type: ignore
+    user_id = account.external_id
+    user_name =account.username
     #logger.debug('checking membership for %s %s %s', user, resource, user_id)
     try:
-        membership = resource.members.get(user_id)
+        membership = resource.members.get(user_id) # type: ignore
         if membership.access_level < access_level:
             print(
                 f'Correcting member level for {user_name} on {resource.name}: {membership.access_level} → {access_level}')
@@ -66,7 +67,7 @@ def check_membership(resource: GitlabProject, user : User, access_level : int):
     except GitlabGetError:
         try:
             # maybe user is member through group?
-            resource.members_all.get(user_id)
+            resource.members_all.get(user_id) # type: ignore
         except GitlabGetError:
             print(
                 f'Adding user {user_name} to {resource.name}: 0 → {access_level}')
@@ -89,23 +90,23 @@ def set_peer_review_settings(subs, peers):
             if not assessor:
                 print('no assessor:', sub)
                 continue
-            print(sub['user_id'], user_git, assessor.account('gitlab').username, assessor.account('gitlab').external_id, url)
+            print(sub['user_id'], user_git, assessor.account('gitlab').username, assessor.account('gitlab').external_id, url) # type:ignore
             if not assessor.account('gitlab'):
                 print('no gitlab account:', user_git, assessor)
                 continue
             if url and url.startswith('inf226/23h'):
                 proj = gl.projects.get(url)
-                check_membership(proj, assessor, gitlab.const.REPORTER_ACCESS)
+                check_membership(proj, assessor, gitlab.const.REPORTER_ACCESS) # type:ignore
             else:
                 print('no project link:', sub)
 
 def get_submissions(course, assignment):
     cc : CanvasConnection = app.extensions['puffin_canvas_connection']
-    return cc.get_submissions(course, assignment)
+    return cc.get_submissions(course, assignment) # type:ignore
 
 def get_peer_reviews(course, assignment):
     cc : CanvasConnection = app.extensions['puffin_canvas_connection']
-    return cc.get_peer_reviews(course, assignment)
+    return cc.get_peer_reviews(course, assignment) # type:ignore
 
 
 def doit():

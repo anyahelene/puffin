@@ -90,3 +90,14 @@ gunicorn --bind unix:/run/gunicorn.sock --access-logfile /var/log/puffin/access.
 
 (If using systemd and launching from a systemd socket, drop the `--bind unix:…` part – gunicorn will inherit the socket as a file descriptor.)
 
+# Database upgrade
+
+```sh
+alembic check
+
+alembic revision --autogenerate -m add_something_to_something
+
+alembic upgrade head
+```
+pip install -U `sed -e s/=.*$// -e s/ .*$// requirements.txt`
+python -m venv --upgrade .venv

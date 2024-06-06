@@ -1,6 +1,7 @@
 from datetime import datetime
 from http import HTTPStatus
-from flask import Blueprint, Flask, abort, current_app, flash, g, jsonify, redirect, render_template, request, session, url_for
+from typing import Any
+from flask import Blueprint, Config, Flask, abort, current_app, flash, g, jsonify, redirect, render_template, request, session, url_for
 from flask_login import LoginManager, current_user, login_required, login_user, logout_user
 from flask_wtf import CSRFProtect, FlaskForm
 from wtforms import StringField, PasswordField, SubmitField
@@ -24,9 +25,9 @@ class LoginForm(FlaskForm):
     submit = SubmitField('Submit')
 
 bp = Blueprint('login', __name__, url_prefix='/login')
-login_manager = LoginManager()
+login_manager : Any = LoginManager()
 oauth = OAuth()
-app_config = None
+app_config : Config
 def init(app:Flask, parent:Blueprint):
     (parent or app).register_blueprint(bp)
     login_manager.init_app(app)
@@ -81,7 +82,7 @@ def login():
 def login_gitlab():
     redirect_uri = url_for('app.login.authorize_gitlab', _external=True)
     _logger.info("/login/gitlab[%s]: redirect_uri=%s", g.log_ref, redirect_uri)
-    r= oauth.gitlab.authorize_redirect(redirect_uri)
+    r= oauth.gitlab.authorize_redirect(redirect_uri) # type: ignore
     #for k,v in gitlab_oauth.__dict__.items():
     #    print(k, v)
     return r
@@ -99,7 +100,7 @@ def logout_gitlab():
 @bp.route('/sudone')
 @login_required
 def sudone():
-    _logger.info("/login/sudone[%s]: real=%d, id=%s",  g.log_ref, repr(session.get('real_user')), repr(current_user.id))
+    _logger.info("/login/sudone[%s]: real=%s, id=%s",  g.log_ref, repr(session.get('real_user')), repr(current_user.id))
     real_user = session.get('real_user')
 
     if real_user != None and real_user != current_user.id:
@@ -141,7 +142,7 @@ def define_gitlab_from_gitlab_userinfo(user, external_id, userinfo, profile):
 
 @bp.route('/gitlab/callback')
 def authorize_gitlab():
-    token = oauth.gitlab.authorize_access_token()
+    token = oauth.gitlab.authorize_access_token() # type: ignore
     _logger.info('/login/authorize_gitlab[%s]: token %s', g.log_ref, token)
     userinfo = token['userinfo']
     _logger.info('/login/authorize_gitlab[%s]: OpenID Connect callback userinfo: %s', g.log_ref,  userinfo)
@@ -176,7 +177,7 @@ def authorize_gitlab():
     profile = gc.get_user(userid)
     _logger.info('/login/authorize_gitlab[%s]: Profile: %s', g.log_ref, profile)
     if not profile:
-        error = f'Failed to retrieve information about {acc.username}. Please ask a TA for assistance. Sorry!'
+        error = f'Failed to retrieve information about {userid}. Please ask a TA for assistance. Sorry!'
 
 
     if current_user: # user is logged in, we're connecting to the GitLab account
@@ -187,20 +188,20 @@ def authorize_gitlab():
         flash(f'Successfully connected to your GitLab account {acc.username}! (ref: {g.log_ref})')
         return redirect(url_for('app.index_html'))
     else:
-        user = db_session.execute(select(User).where(User.email == userinfo['email'])).one_or_none()
-        if user and user.account['gitlab']:
+        email_user = db_session.execute(select(User).where(User.email == userinfo['email'])).scalar_one_or_none()
+        if email_user and email_user.account('gitlab'):
             # user exists with this email address, but different GitLab account
             error = f'User with email {userinfo["email"]} already exists with a GitLab account'
-        elif user:
+        elif email_user:
             # user exists, not connected to GitLab
-            acc = define_gitlab_from_gitlab_userinfo(user, userid, userinfo, profile)
-            login_user(user)
-            session['real_user'] = user.id
+            acc = define_gitlab_from_gitlab_userinfo(email_user, userid, userinfo, profile)
+            login_user(email_user)
+            session['real_user'] = email_user.id
             session['login_ref'] = g.log_ref
             flash(f'Successfully logged in and connected to your GitLab account {acc.username}! (ref: {g.log_ref})')
             return redirect(url_for('app.index_html'))
         else:
-            error = f'No user found corresponding to your GitLab account {acc.username}. Please as a TA for assistance. Sorry!'
+            error = f'No user found corresponding to your GitLab account {userinfo['email']}. Please as a TA for assistance. Sorry!'
 
     _logger.error('/login/authorize_gitlab[%s]: Error: %s', g.log_ref, error)
     flash(error+ f' (ref: {g.log_ref})')

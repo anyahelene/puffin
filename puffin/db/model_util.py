@@ -63,12 +63,12 @@ T = TypeVar('T', covariant=True)
 
 def new_id(session: sa.orm.Session, cls: Type[T]) -> int:
     with session.begin_nested() as ss:
-        id = Id(type=cls.__tablename__)
+        id = Id(type=getattr(cls,'.__tablename__'))
         session.add(id)
     return id.id
 
 
-def get_or_define(session: sa.orm.Session, cls: Type[T], filter: dict, default: dict, add_new=True) -> Tuple[T, bool]:
+def get_or_define(session: sa.orm.Session, cls: Type[T], filter: dict, default: dict = {}, add_new=True) -> Tuple[T, bool]:
     obj = session.execute(sa.select(cls).filter_by(**filter)).scalar_one_or_none()
     if obj != None:
         session.add(obj)
@@ -76,13 +76,13 @@ def get_or_define(session: sa.orm.Session, cls: Type[T], filter: dict, default: 
     if 'id' in filter:
         obj = cls(**filter, **default)
     else:
-        obj = cls(id=new_id(session, cls), **filter, **default)
+        obj = cls(id=new_id(session, cls), **filter, **default)  # type: ignore
     if add_new:
         session.add(obj)
     return obj, True
 
 
-def update_from_uib(session: sa.orm.Session, row, course, changes=None, sync_time: datetime = None):
+def update_from_uib(session: sa.orm.Session, row, course, changes=None, sync_time: datetime|None = None):
     """Create or update user and uib/mitt_uib accounts from Mitt UiB data."""
     name = row['sortable_name']
     (lastname, firstname) = [s.strip() for s in name.split(',', 1)]
@@ -136,7 +136,7 @@ def update_from_uib(session: sa.orm.Session, row, course, changes=None, sync_tim
     return uib_user
 
 
-def define_gitlab_account(session: sa.orm.Session, user: User, username: str, userid: int, name=None, changes=None, sync_time: datetime = None):
+def define_gitlab_account(session: sa.orm.Session, user: User, username: str, userid: int, name=None, changes=None, sync_time: datetime|None = None):
     if not name:
         name = f'{user.firstname} {user.lastname}'
     git_user, created = get_or_define(session, Account, {'username': username,
@@ -152,7 +152,7 @@ def define_gitlab_account(session: sa.orm.Session, user: User, username: str, us
     return git_user
 
 
-def update_groups_from_uib(session: sa.orm.Session, data, course, changes=None, sync_time: datetime = None):
+def update_groups_from_uib(session: sa.orm.Session, data, course, changes=None, sync_time: datetime|None = None):
     """Create or update course groups from Mitt UiB data."""
     if data.get('sis_section_id') == None:
         return None
@@ -208,7 +208,7 @@ def update_groups_from_uib(session: sa.orm.Session, data, course, changes=None, 
     session.commit()
 
 
-def check_group_membership(db: sa.orm.Session, course: Course, group: Group, user: User, changes=None, students_only=True, join=JoinModel.AUTO, sync_time: datetime = None):
+def check_group_membership(db: sa.orm.Session, course: Course, group: Group, user: User, changes=None, students_only=True, join=JoinModel.AUTO, sync_time: datetime|None = None):
     en = user.enrollment(course)
     if en:
         if students_only and en.role != 'student':

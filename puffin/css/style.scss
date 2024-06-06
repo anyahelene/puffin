@@ -15,6 +15,7 @@ $color-dark: #3D3D3D;
 :root {
     --color-1: #{$color-1};
     --color-1-light: #{color.scale($color-1, $lightness:+40%)};
+    --color-1-dark: #{color.scale($color-1, $lightness:-60%)};
     //--color-1b: #F36E31;
     --color-2: #{$color-2}; //--color-2b: #Ecbf36;
     --color-2-desat: #{color.scale($color-2, $saturation:-40%)}; 
@@ -213,8 +214,15 @@ a:link.external,
 a:link[target="_blank"] {
     position: relative;
 }
-
-
+a:link {
+    color: var(--color-1-dark);
+}
+a.external, a[target="_blank"], a[download] {
+    color: #00e;
+}
+a:visited.external a[target="_blank"]:visited, a[download]:visited {
+    color: #632d94
+}
 a:link.external::after,
 a:link[target="_blank"]::after {
     background-image: url(../img/arrow-up-right-square.svg);
@@ -728,5 +736,20 @@ header {
 
     .flash.remove {
         left: -100%;
+    }
+}
+
+.two-column {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: flex-start;
+    column-gap: 2rem;
+    width:100%;
+    flex-wrap: wrap;
+    div {
+        max-width: calc(max(40em,650px));
+        min-width: 15em;
+        flex-shrink: 1;
     }
 }

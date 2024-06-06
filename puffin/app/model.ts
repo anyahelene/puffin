@@ -1,4 +1,4 @@
-import { html, render } from 'uhtml';
+import { Hole, html, render } from 'uhtml';
 import {
     _Course,
     _FullUser,
@@ -16,7 +16,7 @@ import {
     Membership_columns,
 } from './model_gen';
 export { tables } from './model_gen';
-import { request, puffin, to_table, gitlab_url, handle_internal_link, user_emails } from './puffin';
+import { request, puffin, to_table, gitlab_url, handle_internal_link, user_emails, readable_size } from './puffin';
 import { CourseView } from './courses';
 import { BorbPanelBuilder } from '../borb/Frames';
 import { BorbButton } from '../borb/Buttons';
@@ -41,25 +41,21 @@ export class Group extends _Group {
         return this.members.map(m => this.course.usersById[m.user_id])
     }
     get students(): User[] {
-        return this.members.filter(m => m.role == 'student').map(m => this.course.usersById[m.user_id])
+        return this.members.filter(m => m.role === 'student').map(m => this.course.usersById[m.user_id])
     }
     isMember(u: User | SelfUser) {
         return this.members.findIndex(m => m.user_id === u.id) != -1;
     }
+    isStudent(u: User | SelfUser) {
+        return this.members.findIndex(m => m.role === 'student' && m.user_id === u.id) != -1;
+    }
     display(panel: HTMLElement = undefined) {
         panel = panel ? panel : new BorbPanelBuilder()
             .frame('frame2')
-            .panel('div', 'group_display')
+            .panel('div', `group_${this.slug}_display`)
             .title(this.name)
             .select(true)
             .done();
-        const isMember = this.isMember(Course.current_user) || Course.current_user.is_admin;
-        const table1 = to_table({ _type: 'Member[]', data: this.members, selectable: false });
-        const debug = puffin.debug['console'] ? html`<div><button type="button" onclick=${() => console.log(this)}>Debug</button></div>` : '';
-        const children = this.children;
-        const children_table = children.length > 0 ? to_table({ _type: 'Group[]', data: children, selectable: false }) : '';
-        const title = this.json_data.project_path ? html`<a href="${gitlab_url(this.json_data.project_path)}" target="_blank"> ${this.json_data.project_name} – [${this.json_data.project_path}]</a>` : this.json_data.project_name;
-        const filesPath = `courses/${this.course.external_id}/teams/${this.id}/files/`;
         const setPerm = async (ev: Event) => {
             const elt = ev.currentTarget as BorbButton;
             if (elt.name) {
@@ -88,13 +84,34 @@ export class Group extends _Group {
             }
         }
         const redraw = () => {
+            const isStudent = this.isStudent(Course.current_user) || Course.current_user.is_admin;
+            const isMember = this.isMember(Course.current_user) || Course.current_user.is_admin;
+            const table1 = to_table({ _type: 'Member[]', data: this.members.filter(m => m.role === 'student'), selectable: false });
+            const debug = puffin.debug['console'] ? html`<div><button type="button" onclick=${() => console.log(this)}>Debug</button></div>` : '';
+            const children = this.children;
+            const children_table = children.length > 0 ? to_table({ _type: 'Group[]', data: children, selectable: false }) : '';
+            const title = this.json_data.project_path ? html`<a href="${gitlab_url(this.json_data.project_path)}" target="_blank"> ${this.json_data.project_name} – [${this.json_data.project_path}]</a>` : this.json_data.project_name;
+            const filesPath = `courses/${this.course.external_id}/teams/${this.id}/files/`;
             const share = this.json_data.share || {};
             console.log('redraw', this.json_data.share_jar, JSON.stringify(this.json_data))
-            const shareSrc = html`<b>Share source code:</b> <borb-button type="switch" name="share_src" data-filename=${share.src_file}   onchange=${setPerm} ?disabled=${!isMember} checked=${share.share_src}></borb-button>
-            ${(share.src_file && (isMember || share.share_src ||true)) ? html`<a href=${filesPath + share.src_file} download>(${share.src_file})</a>` : ''}<br>`
-            const shareJar = html`<b>Share JAR file:</b> <borb-button type="switch" name="share_jar" data-filename=${share.jar_file} onchange=${setPerm} ?disabled=${!isMember} checked=${share.share_jar}></borb-button>
-            ${(share.jar_file && (isMember || share.share_jar||true)) ? html`<a href=${filesPath + share.jar_file} >(${share.jar_file})</a>` : ''}<br>`
-
+            const has_members = this.students.length > 0;
+            let sharing = [];
+            if (this.kind === 'team') {
+                sharing.push(html`<b>Readme:</b> ${(share.readme_file && (isMember || share.share_src || share.share_jar)) ? html`<a href=${filesPath + share.readme_file} target="_blank">${share.readme_file}</a>` : html`<em>(private)</em>`}<br>`)
+                if (isStudent) {
+                    sharing.push(html`<b>Share source code:</b> <borb-button type="switch" name="share_src" data-filename=${share.src_file}   onchange=${setPerm} ?disabled=${!isStudent} ?checked=${share.share_src}></borb-button>
+                    ${(share.src_file && (isStudent || share.share_src)) ? html`(<a href=${filesPath + share.src_file} download>${share.src_file}</a>, ${readable_size(share.src_size)})` : ''}<br>`)
+                    sharing.push(html`<b>Share JAR file:</b> <borb-button type="switch" name="share_jar" data-filename=${share.jar_file} onchange=${setPerm} ?disabled=${!isStudent} ?checked=${share.share_jar}></borb-button>
+                    ${(share.jar_file && (isStudent || share.share_jar)) ? html`(<a href=${filesPath + share.jar_file} download>${share.jar_file}</a>, ${readable_size(share.jar_size)})` : ''}<br>`)
+                } else {
+                    sharing.push(html`<b>Source code:</b> ${(share.src_file && (isMember || share.share_src)) ? html`<a href=${filesPath + share.src_file} download>${share.src_file}</a> (${readable_size(share.src_size)})` : html`<em>(private)</em>`}<br>`)
+                    sharing.push(html`<b>Runnable JAR file:</b> ${(share.jar_file && (isMember || share.share_jar)) ? html`<a href=${filesPath + share.jar_file} download>${share.jar_file}</a> (${readable_size(share.jar_size)})` : html`<em>(private)</em>`}<br>`)
+                }
+                (share.screenshots || []).forEach(entry => {
+                    const name = entry[0], size = entry[1];
+                    sharing.push(html`<a href=${filesPath + name} target="_blank"><img src=${filesPath + name} width=300></a> `)
+                })
+            }
             render(
                 panel,
                 html`
@@ -102,17 +119,30 @@ export class Group extends _Group {
                         ? html`<h2>Team ${this.name} ${this.parent ? html`(${this.parent.as_link()})` : ''}</h2>
                 <b>Project:</b> ${title}<br>`
                         : html`<h2>Group/${this.kind} ${this.name}</h2>`}
-                ${'' && shareSrc}
-                ${shareJar}
+                ${sharing}
+                ${has_members ? html`
                 <div><borb-sheet>${table1}</borb-sheet></div>
                 ${this.join_source ? html`<p>(members imported from ${this.join_source})</p>` : ''}
-                <div><b>Email:</b> ${user_emails(this.students)}</div>
+                <p><b>Emails:</b> ${user_emails(this.students)}</p>
                 <div><borb-sheet>${children_table}</borb-sheet></div>
-                ${debug}
+                ${debug}` : ''}
                 `,
             );
         }
         redraw();
+    }
+
+    get_file_link(kind) {
+        const filesPath = `courses/${this.course.external_id}/teams/${this.id}/files/`;
+        const share = this.json_data.share || {};
+        if (share[`${kind}_file`]) {
+            if (share[`share_${kind}`]) {
+                return html.node`<a href=${filesPath + share[`${kind}_file`]} download>${share[`${kind}_file`]}</a> (${readable_size(share[`${kind}_size`])})`;
+            } else if (kind === 'readme') {
+                return html.node`<a href=${filesPath + share[`${kind}_file`]} target="_blank">README.md</a>`;
+            }
+        }
+        return '';
     }
 
     async sync_with_gitlab() {
@@ -139,19 +169,41 @@ export const Team_columns = [
     },
     {
         name: "name",
-        type: "str",
+        head: "Team name",
+        type: "custom",
         access: { "write": "member" },
+        mapping: (field, obj:Group, spec) => html.node`${obj.as_link(obj.name)}`
     },
     {
         name: "slug",
+        head: "Short name",
         type: "group.slug",
         form: { "slugify": "name" },
     },
     {
         name: "project",
+        head: "Git project",
         type: "custom",
-        mapping: (field, obj, spec) => html.node`<a href="${gitlab_url(obj.json_data.project_path)}" target="_blank">${obj.json_data.project_name}</a>`
+        mapping: (field, obj, spec) => obj.json_data.project_path ? html.node`<a href="${gitlab_url(obj.json_data.project_path)}" target="_blank">${obj.json_data.project_name}</a>` : '',
     },
+    {
+        name: "share_readme",
+        head: "Project README",
+        type: "custom",
+        mapping: (field, obj:Group, spec) => obj.get_file_link('readme')
+    },
+    {
+        name: "share_jar",
+        head: "Runnable JAR",
+        type: "custom",
+        mapping: (field, obj:Group, spec) => obj.get_file_link('jar')
+    },
+    {
+        name: "share_src",
+        head: "Source code",
+        type: "custom",
+        mapping: (field, obj:Group, spec) => obj.get_file_link('src')
+    }
     /*    {
             name: "json_data",
             type: "dict",

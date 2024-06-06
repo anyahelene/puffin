@@ -1,4 +1,5 @@
 import base36
+import gitlab.exceptions
 import yaml
 import logging.config
 import logging
@@ -6,7 +7,7 @@ import os
 import sys
 from puffin.db import database
 from puffin.gitlab.users import GitlabConnection
-from puffin.canvas.users import CanvasConnection
+from puffin.canvas.canvas import CanvasConnection
 from puffin.util.errors import ErrorResponse
 from puffin.app import view_projects
 from os.path import dirname, abspath, join, isabs
@@ -17,7 +18,7 @@ from requests import HTTPError
 import gitlab
 from flask_wtf import CSRFProtect, FlaskForm
 from flask_login import login_required, current_user
-from flask import Blueprint, Flask, flash, abort, g, has_request_context, url_for, render_template, request, send_file, send_from_directory, make_response, session, Response
+from flask import Blueprint, Flask, current_app, flash, abort, g, has_request_context, url_for, render_template, request, send_file, send_from_directory, make_response, session, Response
 import json
 from datetime import datetime
 from .proxy_fix import ProxyFix
@@ -185,6 +186,8 @@ def shell_setup():
     from puffin.db import model_tables, model_util, model_views, database
     from puffin.db.model_tables import User, Account, Course, Enrollment, Membership, Group, JoinModel, LogType, Id, Project
     from puffin.db.model_views import CourseUser, UserAccount, FullUser
+    from puffin.canvas import canvas
+    canvas.__dict__['connection'] = current_app.extensions["puffin_canvas_connection"]
     from importlib import reload
     db = database.db_session
 
@@ -195,7 +198,7 @@ class HeartbeatForm(FlaskForm):
 
     @property
     def current_token(self):
-        return self._fields['csrf_token'].current_token
+        return self._fields['csrf_token'].current_token # type: ignore
 
 
 @app_bp.get("/heartbeat")
@@ -209,13 +212,18 @@ def heartbeat():
 
 
 @app_bp.route('favicon.ico')
-def favicon_ico():
+def favilcon_ico():
+    if not app.static_folder:
+        abort(404)
     return send_from_directory(app.static_folder, 'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
 
 @app_bp.route('/favicon.png')
 def favicon_png():
+    if not app.static_folder:
+        abort(404)
     return send_from_directory(app.static_folder, 'favicon.png', mimetype='image/png')
+
 
 
 @app_bp.route('/index.html')
@@ -227,16 +235,22 @@ def index_html():
 
 @app_bp.route('/static/js/<path>')
 def static_js(path: str):
+    if not app.static_folder:
+        abort(404)
     return send_from_directory(app.static_folder, request.path[1:])
 
 
 @app_bp.route('/static/img/<path>')
 def static_img(path: str):
+    if not app.static_folder:
+        abort(404)
     return send_from_directory(app.static_folder, request.path[1:])
 
 
 @app_bp.route('/static/css/<path>')
 def static_css(path: str):
+    if not app.static_folder:
+        abort(404)
     return send_from_directory(app.static_folder, request.path[1:])
 
 
@@ -253,21 +267,21 @@ def before_request():
     g.log_ref = base36.dumps(
         int(datetime.timestamp(datetime.now())*1000) & 0x7fffffff)
     # print("request.args: ", request.args)
-    print("current_user: ", current_user,
+    print("current_user: ", getattr(current_user,'email','anonymous'),
           'real user:', session.get('real_user'))
     # print("session: ", session)
 
 @app.after_request
 def after_request(response:Response):
-    print('after requset', current_user, '\n' + str(response.headers))
     if current_user:
-        response.headers.add('X-User', getattr(current_user, "email", None))
+        print('after request', getattr(current_user,'email','anonymous'))
+        response.headers.add('X-User', getattr(current_user,'email','anonymous'))
     return response
     
 @app.teardown_appcontext
 def shutdown_session(exception=None):
     print("shutdown_session")
-    database.db_session.remove()
+    database.db_scoped_session.remove()
 
 
 # @app.errorhandler(Exception)
@@ -276,7 +290,7 @@ def shutdown_session(exception=None):
 #    raise e
 
 @app.errorhandler(ErrorResponse)
-def handle_exception(e: ErrorResponse):
+def handle_error_exception(e: ErrorResponse):
     """Return JSON for errors."""
     # start with the correct headers and status code from the error
     response = make_response()
@@ -289,7 +303,7 @@ def handle_exception(e: ErrorResponse):
 
 
 @app.errorhandler(SQLAlchemyError)
-def handle_exception(e: SQLAlchemyError):
+def handle_sql_exception(e: SQLAlchemyError):
     """Return JSON for errors."""
     error = {
         'status': 'error',

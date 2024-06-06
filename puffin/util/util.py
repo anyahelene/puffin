@@ -1,5 +1,5 @@
 from datetime import datetime, date, time, timezone
-from typing import TypeVar
+from typing import Any, TypeVar
 import regex
 import json
 class DateEncoder(json.JSONEncoder):
@@ -19,7 +19,7 @@ def intify(data : str|int) -> str|int:
 def now() -> datetime:
     return datetime.now(timezone.utc)
 
-def decode_date(s:str) -> datetime:
+def decode_date(s:str) -> datetime|None:
     try:
         if not s:
             return None
@@ -36,10 +36,10 @@ __VALID_SLUG_CHARS__ = r'[a-z0-9-]'
 __VALID_SLUG_PATH_CHARS__ = r'[/a-z0-9-]'
 GITLAB_PATH_RE = '([a-zA-Z0-9_\\.][a-zA-Z0-9_\\-\\.]*[a-zA-Z0-9_\\-]|[a-zA-Z0-9_])';
 
-VALID_DISPLAY_NAME_REGEX = regex.compile(f'^{__VALID_DISPLAY_NAME_CHARS__}+$')
-VALID_DISPLAY_NAME_PREFIX = regex.compile(f'^{__VALID_DISPLAY_NAME_CHARS__}+')
-VALID_SLUG_REGEX = regex.compile(f'^{GITLAB_PATH_RE}$')
-VALID_SLUG_PREFIX = regex.compile(f'^{__VALID_SLUG_CHARS__}+')
-VALID_SLUG_PATH_REGEX = regex.compile(f'^{GITLAB_PATH_RE}(/{GITLAB_PATH_RE})*$')
-VALID_SLUG_PATH_OR_EMPTY_REGEX = regex.compile(f'^{GITLAB_PATH_RE}(/{GITLAB_PATH_RE})*$')
-VALID_SLUG_PATH_PREFIX = regex.compile(f'^{__VALID_SLUG_PATH_CHARS__}+')
+VALID_DISPLAY_NAME_REGEX : Any = regex.compile(f'^{__VALID_DISPLAY_NAME_CHARS__}+$')
+VALID_DISPLAY_NAME_PREFIX : Any = regex.compile(f'^{__VALID_DISPLAY_NAME_CHARS__}+')
+VALID_SLUG_REGEX : Any = regex.compile(f'^{GITLAB_PATH_RE}$')
+VALID_SLUG_PREFIX : Any = regex.compile(f'^{__VALID_SLUG_CHARS__}+')
+VALID_SLUG_PATH_REGEX : Any = regex.compile(f'^{GITLAB_PATH_RE}(/{GITLAB_PATH_RE})*$')
+VALID_SLUG_PATH_OR_EMPTY_REGEX : Any = regex.compile(f'^{GITLAB_PATH_RE}(/{GITLAB_PATH_RE})*$')
+VALID_SLUG_PATH_PREFIX : Any = regex.compile(f'^{__VALID_SLUG_PATH_CHARS__}+')

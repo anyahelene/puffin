@@ -21,7 +21,7 @@ STATUS_BADGE_LINK_URL = 'https://git.app.uib.no/%{project_path}/-/pipelines/late
 STATUS_BADGE_IMAGE_URL = 'https://git.app.uib.no/%{project_path}/badges/%{default_branch}/pipeline.svg'
 
 CI_CONFIG_PATH = '.gitlab-ci.yml@ii/inf222/v23/assignments/test-runner'
-DEFAULT_ACCESS_LEVEL = gitlab.const.DEVELOPER_ACCESS
+DEFAULT_ACCESS_LEVEL = gitlab.const.DEVELOPER_ACCESS  # type:ignore
 
 FATAL_ERRORS = [gitlab.GitlabBanError, gitlab.GitlabAuthenticationError]
 # Set these to 'disabled' to disabled the feature,
@@ -48,7 +48,7 @@ FEATURE_ACCESS = {
 REPO_SUB_FEATURES = ['merge_requests_access_level',
                      'builds_access_level', 'forking_access_level']
 DEFAULT_PROJECT_CONFIG = {
-    'visibility': gitlab.const.VISIBILITY_PRIVATE,
+    'visibility': gitlab.const.VISIBILITY_PRIVATE,  # type:ignore
     'ci_config_path': CI_CONFIG_PATH,
     'auto_cancel_pending_pipelines': 'enabled',
     'auto_devops_enabled': False,
@@ -66,7 +66,7 @@ DEFAULT_PROJECT_CONFIG = {
 
 
 class AssignmentFork:
-    def __init__(self, assignment: Project | str | int, test_project: Project | str = None, gitlab_config: dict = None, access_level: int = DEFAULT_ACCESS_LEVEL, gitlab: gitlab.Gitlab = None, gitlab_token=TOKEN):
+    def __init__(self, assignment: Project | str | int, test_project: Project | str | None = None, gitlab_config: dict|None = None, access_level: int = DEFAULT_ACCESS_LEVEL, gitlab: gitlab.Gitlab | None = None, gitlab_token=TOKEN):
         self.gl = Gitlab(url='https://git.app.uib.no/',
                          private_token=gitlab_token) if gitlab == None else gitlab
         if self.gl.user == None and TOKEN != None and not TOKEN.isspace():
@@ -93,7 +93,9 @@ class AssignmentFork:
         self.gitlab_config = config
         self.commit = True
 
-    def __find_test_project(self, test_project) -> str:
+    def __find_test_project(self, test_project) -> str|None:
+        if test_project == None:
+            return None
         if isinstance(test_project, Project):
             self.test_project = test_project
             return test_project.path
@@ -120,8 +122,8 @@ class AssignmentFork:
         user_id = getattr(user, 'id', user)
         #logger.debug('checking membership for %s %s %s', user, resource, user_id)
         try:
-            membership = resource.members.get(user_id)
-            if membership.access_level != gitlab.const.OWNER_ACCESS and membership.access_level != self.access_level:
+            membership = resource.members.get(user_id)  # type:ignore
+            if membership.access_level != gitlab.const.OWNER_ACCESS and membership.access_level != self.access_level:  # type:ignore
                 print(
                     f'Correcting member level for {self.get_user_name(user)} on {resource.name}: {membership.access_level} → {self.access_level}')
                 membership.access_level = self.access_level
@@ -132,7 +134,7 @@ class AssignmentFork:
         except GitlabGetError:
             try:
                 # maybe user is member through group?
-                resource.members_all.get(user_id)
+                resource.members_all.get(user_id)  # type:ignore
             except GitlabGetError:
                 print(
                     f'Adding user {self.get_user_name(user)} to {resource.name}: 0 → {self.access_level}')
@@ -170,16 +172,16 @@ class AssignmentFork:
 
     def __failed(self, e:GitlabError, subject=None):
         self._last_error = e
-        self.__change('failed', subject, error_message=e.error_message, response_code=e.response_code, response_body=e.response_body)
+        self.__change('failed', subject, error_message=e.error_message, response_code=e.response_code, response_body=e.response_body)  # type:ignore
         self.errors.append((e.error_message, subject, e))
 
     def check_pushes(self,  user: User | CurrentUser | str | int, count_commits=False, override_project_username = None):
         try:
             user = self.get_user(user)
             proj =  self.__check_user_project(user, details = False,override_project_username=override_project_username)
-            fetches = proj.additionalstatistics.get().fetches['total']
+            fetches = proj.additionalstatistics.get().fetches['total']  # type:ignore
 
-            events = proj.events.list(action='pushed',iterator=True)
+            events = proj.events.list(action='pushed',iterator=True)  # type:ignore
             if count_commits:
                 commits = 0
                 for event in events:
@@ -204,9 +206,9 @@ class AssignmentFork:
             user = self.get_user(user)
             proj =  self.__check_user_project(user, details,override_project_username)
             req = {'source_branch': self.assignment.default_branch,
-                   'target_branch': proj.default_branch,
+                   'target_branch': proj.default_branch,  # type:ignore
                     'title': title,
-                    'target_project_id': proj.id,
+                    'target_project_id': proj.id,  # type:ignore
                     'labels':labels,
                     'assignee_id': user.id
                 }
@@ -223,8 +225,8 @@ class AssignmentFork:
             else:
                 self.__failed(e, user)
 
-    def get_merge_requests(self, state = 'opened', has_conflicts:bool = None):
-        if self.group:
+    def get_merge_requests(self, state = 'opened', has_conflicts:bool|None = None):  
+        if self.group: 
             mreqs = self.group.mergerequests.list(source_branch=self.assignment.default_branch, source_project_id=self.assignment.id, state=state, view='simple', iterator=True)
             mreqs = [self.gl.projects.get(mr.project_id).mergerequests.get(mr.iid) for mr in mreqs]
         else:
@@ -270,7 +272,7 @@ class AssignmentFork:
             {'image_url': STATUS_BADGE_IMAGE_URL, 'link_url': STATUS_BADGE_LINK_URL})
         self.__change('add_badge', project)
 
-    def check_project_setup(self, user: User | CurrentUser, project: Project, config: dict):
+    def check_project_setup(self, user: User | CurrentUser | None, project: Project, config: dict):
         for key in config:
             if getattr(project, key) != config[key]:
                 setattr(project, key, config[key])
@@ -349,8 +351,8 @@ class AssignmentFork:
         if isinstance(user, int):
             user = self.gl.users.get(user)
         elif isinstance(user, str):
-            user, = self.gl.users.list(username=user)
-        return user
+            user, = self.gl.users.list(username=user)  # type:ignore
+        return user  # type:ignore
 
     def get_user_name(self, user: User | CurrentUser | str | int) -> str:
         if isinstance(user, int):
@@ -420,7 +422,7 @@ if __name__ == '__main__':
                     if row['gitid'].isdigit():
                         if n >= skip:
                             if merge:
-                                proj = assignment.make_merge_request(int(row['gitid']), details, row.get('gitoverride'))
+                                proj = assignment.make_merge_request(int(row['gitid']), details=details, override_project_username=row.get('gitoverride'))
                             elif check_push:
                                 proj = assignment.check_pushes(int(row['gitid']), count_commits=True, override_project_username=row.get('gitoverride'))
                             else:

@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Iterable
 from flask import Flask, current_app
 from gitlab import Gitlab, GitlabGetError
 from gitlab.v4.objects import (
@@ -17,7 +18,7 @@ import threading
 logger = logging.getLogger(__name__)
 
 
-class GitlabConnection:
+class GitlabConnection:  
     def __init__(self, app_or_url, token=None):
         if isinstance(app_or_url, Flask):
             app = app_or_url
@@ -35,7 +36,7 @@ class GitlabConnection:
         self.thread_local.gl = None
 
     @property
-    def gl(self):
+    def gl(self) -> Gitlab:
         if getattr(self.thread_local, "gl", None) == None:
             self.thread_local.gl = Gitlab(url=self.base_url, private_token=self.token)
         return self.thread_local.gl
@@ -56,7 +57,7 @@ class GitlabConnection:
     ) -> tuple[list[PuffinUser], list[str]]:
         p = self.get_project_or_group(project)
         ml = p.members_all if indirect else p.members
-        members: list[GitlabUser] = ml.list(iterator=True)
+        members: Iterable[GitlabUser] = ml.list(iterator=True) # type:ignore
         result = [(self.map_gitlab_user(session, u), u) for u in members]
         return (
             [pu for (pu, gu) in result if pu],
@@ -96,7 +97,7 @@ class GitlabConnection:
         if isinstance(project, int) or isinstance(project, str):
             project = self.gl.projects.get(project)
             if project == None:
-                self.gl.namespaces.g
+                self.gl.namespaces.g  # type:ignore
         if isinstance(project, Project):
             return project
         else:
@@ -107,20 +108,20 @@ class GitlabConnection:
             user = self.gl.users.get(user_id)
             return user.asdict()
         except:
-            return None
+            return None # type:ignore 
 
     def find_gitlab_account(
         self,
         session: sa.orm.Session,
         user: PuffinUser,
         verify=False,
-        sync_time: datetime = None,
-        gitusername: str = None,
+        sync_time: datetime = None, # type:ignore
+        gitusername: str = None, # type:ignore
     ) -> Account:
         name = f"{user.lastname}, {user.firstname}"
         (first_firstname, *more_firstnames) = user.firstname.split()
         acc = user.account("gitlab")
-        gituser: GitlabUser = None
+        gituser: GitlabUser = None # type:ignore
         if acc == None:
             username = gitusername or user.email.replace("@uib.no", "").replace(
                 "@student.uib.no", ""
@@ -128,19 +129,19 @@ class GitlabConnection:
             users = self.gl.users.list(username=username)
             logger.debug("Searching with username=%s: %s", username, users)
             if len(users) == 1:
-                gituser = users[0]
+                gituser = users[0] # type:ignore
             else:
-                username = user.account("canvas").username
+                username = user.account("canvas").username # type:ignore
                 logger.debug("Searching with username=%s: %s", username, users)
                 more_users = self.gl.users.list(username=username)
                 if len(more_users) == 1:
-                    gituser = more_users[0]
+                    gituser = more_users[0] # type:ignore
                 else:
                     username = f"{first_firstname}.{user.lastname}"
                     logger.debug("Searching with username=%s: %s", username, users)
                     more_users = self.gl.users.list(username=username)
                     if len(more_users) == 1:
-                        gituser = more_users[0]
+                        gituser = more_users[0]  # type:ignore
 
             if gituser:
                 acc = define_gitlab_account(
@@ -162,7 +163,7 @@ class GitlabConnection:
             else:
                 logger.warn("Ambiguous GitLab user: %s: %s", user, users)
         elif verify:
-            gituser = self.gl.users.get(acc.external_id)
+            gituser = self.gl.users.get(acc.external_id)  # type:ignore
             if gituser:
                 if gituser.username != acc.username:
                     logger.error(
@@ -185,7 +186,7 @@ class GitlabConnection:
                 acc = None
             if sync_time and acc:
                 LastSync.set_sync(session, acc, sync_time)
-        return acc
+        return acc  # type:ignore
 
     def group_mergerequest_to_project_mergerequest(
         self, gmreq: GroupMergeRequest

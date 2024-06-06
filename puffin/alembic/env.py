@@ -68,7 +68,7 @@ def run_migrations_online() -> None:
 
     """
     connectable = engine_from_config(
-        config.get_section(config.config_ini_section),
+        config.get_section(config.config_ini_section), # type: ignore
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
@@ -80,7 +80,10 @@ def run_migrations_online() -> None:
 
         with context.begin_transaction():
             context.run_migrations()
-    generate_typescript()
+    try:
+        generate_typescript()
+    except PermissionError as e:
+        print('Not generating typescript: permission denied')
 
 
 if context.is_offline_mode():

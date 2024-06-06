@@ -53,6 +53,13 @@ modify_table('FullUser', 'gitlab_username', (entry) => {
             : '';
     entry.type = 'custom';
 });
+modify_table('FullUser', 'join_model', (entry) => {
+    entry.action = (field, obj, spec, currentRow) => {
+        if (obj.join_model === 'REMOVED')
+            currentRow.classList.add('removed')
+    };
+    entry.type = 'action';
+});
 modify_table('FullUser', 'canvas_id', (entry) => (entry.hide = true));
 modify_table('FullUser', 'gitlab_id', (entry) => (entry.hide = true));
 
@@ -149,7 +156,7 @@ export async function request(
 
     log_request(res, JSON.stringify(result, null, 2));
     if (result.status === 'error') {
-        if (has_token && result.message.search(/The CSRF token has expired/) !== -1) {
+        if (has_token && result.data.search(/The CSRF token has expired/) !== -1) {
             console.warn('Resetting CSRF token');
             csrf_token = undefined;
             return request(endPoint, method, params);
@@ -176,6 +183,7 @@ interface ColumnSpec {
     head?: string;
     type?: string;
     mapping?: (val: any, obj: Record<string, any>, spec: ColumnSpec) => HTMLElement | string; // TODO
+    action?: (val: any, obj: Record<string, any>, spec: ColumnSpec, currentRow?: HTMLElement) => void; // TODO
     doc?: string;
     hide?: boolean;
     icons?: Record<string, string>;
@@ -198,7 +206,7 @@ function keys(obj) {
     return keys;
 }
 export function user_emails(users: User[]) {
-    return users.map((u) => `${u.firstname} ${u.lastname} <${u.email}>`).join(', ');
+    return users.map(u => `${u?.firstname} ${u?.lastname} <${u?.email}>`).join(', ');
 }
 
 export function handle_internal_link(ev: MouseEvent) {
@@ -305,7 +313,6 @@ export function to_table(
             (c) =>
                 !(
                     c.type === 'meta' ||
-                    c.hide ||
                     c.name.startsWith('_') ||
                     hide_columns.includes(c.name)
                 ),
@@ -343,9 +350,11 @@ export function to_table(
         elt.dataset.type = 'bool';
     }
     for (let col of columns) {
-        const elt = cell(col.head || col.name, 'th');
-        elt.title = col.name;
-        elt.dataset.type = col.type || 'any';
+        if (!col.hide && !col.action) {
+            const elt = cell(col.head || col.name, 'th');
+            elt.title = col.name;
+            elt.dataset.type = col.type || 'any';
+        }
     }
     currentRow.dataset.type = type;
     thead.appendChild(currentRow);
@@ -383,8 +392,13 @@ export function to_table(
             else if (value === undefined || value === null) {
                 content = '';
             }
+            if (spec.hide)
+                continue;
             let elt: HTMLElement;
             switch (spec.type) {
+                case 'action':
+                    spec.action(value, row, spec, currentRow);
+                    continue;
                 case 'custom':
                     elt = cell(spec.mapping(value, row, spec));
                     break;
@@ -539,4 +553,16 @@ export function busy_event_handler<E extends Event>(
 
 export function gitlab_url(path: string) {
     return `https://git.app.uib.no/${path}`;
+}
+
+export function readable_size(n: number) {
+    if (typeof n !== 'number')
+        return '?';
+    if (n < 1024)
+        return `${n} bytes`;
+    else if (n < 1024 * 1024)
+        return `${Math.round(n / 1024)} KiB`;
+    else if (n < 1024 * 1024 * 1024)
+        return `${Math.round(n / 1024 / 1024)} MiB`;
+
 }

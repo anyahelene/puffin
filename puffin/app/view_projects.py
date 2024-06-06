@@ -17,7 +17,7 @@ def init(app:Flask, parent: Blueprint):
 
 @bp.get('/gitlab/')
 @login_required
-def search_gitlab_project():
+def search_gitlab_project() -> Any:
     gc : GitlabConnection = current_app.extensions['puffin_gitlab_connection']
     if not current_user.is_admin:
          return ('Access denied', 403)
@@ -33,11 +33,11 @@ def search_gitlab_project():
 
 @bp.get('/gitlab/<path:path>')
 @login_required
-def get_gitlab_project(path):
-    user : User = current_user
-    if current_user.is_admin and request.args.get('sudo'):
-         user = db.get(User, int(request.args['sudo']))
+def get_gitlab_project(path) -> Any:
+    user : User = current_user  # type: ignore
     gitlab_acc = user.account('gitlab')
+    external_id = gitlab_acc and gitlab_acc.external_id or 0
+
     if type(path) == str:
         path = path.strip('/')
 
@@ -45,7 +45,7 @@ def get_gitlab_project(path):
         gc : GitlabConnection = current_app.extensions['puffin_gitlab_connection']
         try:
             project = gc.gl.projects.get(path)
-            if user.is_admin or project.members_all.get(gitlab_acc.external_id).access_level >= 30:
+            if user.is_admin or project.members_all.get(external_id).access_level >= 30:
                 print(project.asdict())
                 return project.asdict()
             else:
@@ -55,20 +55,19 @@ def get_gitlab_project(path):
 
 @bp.get('/gitlab_group/<path:path>')
 @login_required
-def get_gitlab_group(path):
-    user : User = current_user
-    if current_user.is_admin and request.args.get('sudo'):
-         user = db.get(User, int(request.args['sudo']))
+def get_gitlab_group(path) -> Any:
+    user : User = current_user  # type: ignore
     gitlab_acc = user.account('gitlab')
+    external_id = gitlab_acc and gitlab_acc.external_id or 0
     if type(path) == str:
         if path.startswith(current_app.config.get('GITLAB_BASE_URL','')):
             path = path[len(current_app.config.get('GITLAB_BASE_URL','')):]
         path = path.strip('/')
-    if (gitlab_acc and gitlab_acc.external_id) or user.is_admin:   
+    if user.is_admin or external_id:   
         gc : GitlabConnection = current_app.extensions['puffin_gitlab_connection']
         try:
             group = gc.gl.groups.get(path, with_projects=False)
-            if user.is_admin or group.members_all.get(gitlab_acc.external_id).access_level >= 30:
+            if user.is_admin or group.members_all.get(external_id).access_level >= 30:
                 return group.asdict()
             else:
                 raise ErrorResponse('Access denied', status_code=403)

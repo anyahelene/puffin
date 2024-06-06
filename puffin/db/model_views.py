@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Callable, Mapping, no_type_check
 import flask
 import sqlalchemy as sa
 from sqlalchemy_utils import create_view
@@ -23,7 +23,7 @@ def rename_columns(name, source):
             info.append(col.info)
     return sa.select(*cols).select_from(source), info
 
-class CourseUser(database.ViewBase):
+class CourseUser(database.ViewBase): # type : Any
     __tablename__ = 'course_user'
     _cols,_infos = rename_columns(__tablename__, sa.join(model_tables.User,model_tables.Enrollment).join(model_tables.Course))
     __table__ = create_view(__tablename__, _cols, database.ViewBase.metadata, cascade_on_drop=False)
@@ -50,7 +50,7 @@ def _init(tbl, src_cols):
     infos = infos + [model_tables.Account.external_id.info, model_tables.Account.username.info]
     #sel = sel.add_columns(Account.external_id.label(f'{p.name}_id'), Account.username.label(f'{p.name}_username'))
     for p in ps[1:]:
-        acc = sa.alias(model_tables.Account, f'{p}_account')
+        acc = sa.alias(model_tables.Account, f'{p}_account') # type: ignore
         sel = sel.outerjoin(acc, sa.and_(tbl.id == acc.c.user_id, acc.c.provider_name == p))
         cols = cols + [acc.c.external_id.label(f'{p}_id'), acc.c.username.label(f'{p}_username')]
         infos = infos + [model_tables.Account.external_id.info, model_tables.Account.username.info]

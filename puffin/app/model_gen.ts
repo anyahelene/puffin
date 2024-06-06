@@ -527,6 +527,7 @@ export class _Enrollment {
     user_id : number;
     course_id : number;
     role : string;
+    join_model : 'RESTRICTED'|'OPEN'|'AUTO'|'CLOSED'|'REMOVED';
     constructor(jsonData:Record<string,any>, revision=0) {
         this.id = jsonData.id;
         this.user_id = jsonData.user_id;
@@ -549,6 +550,10 @@ export class _Enrollment {
         if(this.role !== jsonData.role) {
             changed = true;
             this.role = jsonData.role;
+        }
+        if(this.join_model !== jsonData.join_model) {
+            changed = true;
+            this.join_model = jsonData.join_model;
         }
         return changed;
     }
@@ -576,6 +581,10 @@ export const Enrollment_columns = [
         type: "str",
         icons: {"student": "\ud83e\uddd1\u200d\ud83c\udf93", "ta": "\ud83e\uddd1\u200d\ud83d\udcbb", "teacher": "\ud83e\uddd1\u200d\ud83c\udfeb", "admin": "\ud83e\uddd1\u200d\ud83d\udcbc", "reviewer": "\ud83d\udd75\ufe0f", "": "\ud83e\udd37"},
         access: {"write": "admin", "read": "peer"},
+    },
+    {
+        name: "join_model",
+        type: "JoinModel",
     },
 ]
 tables["Enrollment"] = Enrollment_columns;
@@ -1472,6 +1481,7 @@ export class _CourseUser {
     locale? : string;
     course_id? : number;
     role? : string;
+    join_model? : 'RESTRICTED'|'OPEN'|'AUTO'|'CLOSED'|'REMOVED';
     course_canvas_id? : number;
     course_name? : string;
     course_slug? : string;
@@ -1517,6 +1527,10 @@ export class _CourseUser {
         if(this.role !== jsonData.role) {
             changed = true;
             this.role = jsonData.role;
+        }
+        if(this.join_model !== jsonData.join_model) {
+            changed = true;
+            this.join_model = jsonData.join_model;
         }
         if(this.course_name !== jsonData.course_name) {
             changed = true;
@@ -1566,6 +1580,10 @@ export const CourseUser_columns = [
         type: "str",
         icons: {"student": "\ud83e\uddd1\u200d\ud83c\udf93", "ta": "\ud83e\uddd1\u200d\ud83d\udcbb", "teacher": "\ud83e\uddd1\u200d\ud83c\udfeb", "admin": "\ud83e\uddd1\u200d\ud83d\udcbc", "reviewer": "\ud83d\udd75\ufe0f", "": "\ud83e\udd37"},
         access: {"write": "admin", "read": "peer"},
+    },
+    {
+        name: "join_model",
+        type: "JoinModel",
     },
     {
         name: "course_canvas_id",
@@ -1681,6 +1699,7 @@ export class _FullUser {
     locale? : string;
     course_id? : number;
     role? : string;
+    join_model? : 'RESTRICTED'|'OPEN'|'AUTO'|'CLOSED'|'REMOVED';
     course_canvas_id? : number;
     course_name? : string;
     course_slug? : string;
@@ -1732,6 +1751,10 @@ export class _FullUser {
         if(this.role !== jsonData.role) {
             changed = true;
             this.role = jsonData.role;
+        }
+        if(this.join_model !== jsonData.join_model) {
+            changed = true;
+            this.join_model = jsonData.join_model;
         }
         if(this.course_name !== jsonData.course_name) {
             changed = true;
@@ -1805,6 +1828,10 @@ export const FullUser_columns = [
         type: "str",
         icons: {"student": "\ud83e\uddd1\u200d\ud83c\udf93", "ta": "\ud83e\uddd1\u200d\ud83d\udcbb", "teacher": "\ud83e\uddd1\u200d\ud83c\udfeb", "admin": "\ud83e\uddd1\u200d\ud83d\udcbc", "reviewer": "\ud83d\udd75\ufe0f", "": "\ud83e\udd37"},
         access: {"write": "admin", "read": "peer"},
+    },
+    {
+        name: "join_model",
+        type: "JoinModel",
     },
     {
         name: "course_canvas_id",
