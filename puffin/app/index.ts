@@ -223,7 +223,7 @@ SubSystem.waitFor('dom').then(async () => {
         if (usp.has('course')) {
             await Course.setActiveCourse(parseInt(usp.get('course')))
         }
-        let course = Course.courses[45714] || Course.courses.filter(() => true)[0];
+        let course = Course.courses[48837] || Course.courses.filter(() => true)[0];
         if (course) {
             await course.setActive();
         } else {
