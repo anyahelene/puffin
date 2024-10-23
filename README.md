@@ -101,3 +101,11 @@ alembic upgrade head
 ```
 pip install -U `sed -e s/=.*$// -e s/ .*$// requirements.txt`
 python -m venv --upgrade .venv
+
+
+# Team memberships to CSV
+
+```javascript
+teams = puffin.Course.current.groups.filter(g => g.kind === 'team')
+teams.map(team => team.members.filter(g => g.role == 'student').map(u =>  puffin.Course.current.usersById[u.user_id]).sort((u1,u2) => u1.email.localeCompare(u2.email)).map(u => team.slug + "\t" +u.email).join('\n')).join('\n')
+```

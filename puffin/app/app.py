@@ -186,10 +186,11 @@ def shell_setup():
     from puffin.db import model_tables, model_util, model_views, database
     from puffin.db.model_tables import User, Account, Course, Enrollment, Membership, Group, JoinModel, LogType, Id, Project
     from puffin.db.model_views import CourseUser, UserAccount, FullUser
-    from puffin.canvas import canvas
+    from puffin.canvas import canvas, assignments, lib as canvas_lib
     canvas.__dict__['connection'] = current_app.extensions["puffin_canvas_connection"]
     from importlib import reload
     db = database.db_session
+    course = current_app.extensions["puffin_canvas_connection"].course(45714, stub=True)
 
     return locals().copy()
 

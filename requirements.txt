@@ -8,7 +8,7 @@ charset-normalizer==3.3.2
 click==8.1.7
 cryptography==42.0.7
 Flask==3.0.3
-Flask-Login==0.7.0
+Flask-Login  @ git+https://github.com/maxcountryman/flask-login.git@503cf2d
 Flask-WTF==1.2.1
 greenlet==3.0.3
 idna==3.7
