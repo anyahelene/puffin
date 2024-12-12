@@ -17,7 +17,7 @@ USER puffin
 WORKDIR $INSTALL_DIR
 ADD --chown=puffin requirements.txt .
 RUN if [ ! -z $USE_GIT ]; then rm -f requirements.txt; git clone https://github.com/anyahelene/puffin.git $INSTALL_DIR; fi
-RUN python -m venv $VENV && ls -la $HOME && . $VENV/bin/activate && pip install -r requirements.txt && pip install gunicorn
+RUN python -m venv $VENV && ls -la $HOME && . $VENV/bin/activate && pip install --only-binary :all: -r requirements.txt && pip install --only-binary :all: gunicorn
 COPY --chmod=755 <<EOF $HOME/runit.sh
     . $VENV/bin/activate
     if [ ! -z "$LOG_DIR" ]; then
