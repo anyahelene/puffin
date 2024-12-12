@@ -1,4 +1,4 @@
-from collections import UserDict
+from collections import UserDict, namedtuple
 from flask import current_app
 from typing import Any, Iterable, Self, Annotated
 import typing
@@ -17,6 +17,7 @@ from puffin.util.errors import ErrorResponse
 
 logger = logging.getLogger(__name__)
 
+LogEntry = namedtuple('LogEntry', ['msg', 'method', 'url', 'params', 'headers', 'result'])
 class CanvasConnection:
 
     def __init__(
@@ -35,6 +36,7 @@ class CanvasConnection:
         self.token = token
         self.base_url = base_url
         self.terms = {}
+        self.log = []
 
     def get_single(self, endpoint, params={}, headers={}) -> dict[str, Any]:
         result = self.maybe_request(
@@ -46,6 +48,18 @@ class CanvasConnection:
     def post(self, endpoint, params={}, headers={}, debug=False) -> dict[str, Any]:
         result = self.maybe_request(
             "POST",
+            endpoint,
+            params=params,
+            headers=headers,
+            raise_on_error=True,
+            debug=debug,
+        )
+        assert result != None
+        return result
+
+    def put(self, endpoint, params={}, headers={}, debug=False) -> dict[str, Any]:
+        result = self.maybe_request(
+            "PUT",
             endpoint,
             params=params,
             headers=headers,
@@ -82,15 +96,9 @@ class CanvasConnection:
     ) -> dict[str, Any] | None:
         url = f"{self.base_url}{endpoint}"
 
-        if debug:
-            logger.info(
-                "CanvasConnection:\n\t%s %s\n\tparams=%s\n\theaders=%s",
-                method,
-                url,
-                json.dumps(params),
-                json.dumps(headers),
-            )
-
+        log_entry = self.debug_request(method, url, params, headers, debug)
+        self.log.insert(0, log_entry)
+        
         if do_nothing:
             return params
 
@@ -98,16 +106,32 @@ class CanvasConnection:
 
         req = requests.request(method, url, json=params, headers=headers)
         if req.ok:
-            return req.json()
+            log_entry = log_entry._replace(result=req.json())
+            return log_entry.result
         elif not raise_on_error:
             return None
         else:
+            log_entry = log_entry._replace(result=req.status_code)
             logger.error(
                 f"Request failed: {self.base_url}{endpoint} {req.status_code} {req.reason}"
             )
             raise ErrorResponse(
                 f"Request failed: {req.reason}", endpoint, status_code=req.status_code
             )
+
+    def debug_request(self, method, url, params, headers, debug) -> LogEntry:
+        params = params or {}
+        headers = {k:headers[k] for k in headers or {} if k not in ['Authorization','Cookie']}
+        logger.info(
+            "CanvasConnection:  %s %s%sparams=%s%sheaders=%s",
+            method,
+            url,
+            '\n\t' if debug and len(params) > 0 else ', ',
+            json.dumps(params),
+            '\n\t' if debug and len(headers) > 0 else ', ',
+            json.dumps(headers),
+        )
+        return LogEntry(f'{method} {url}', method, url, params, headers, None)
 
     def get_paginated(self, endpoint, params={}, headers={}) -> list[dict[str, Any]]:
         result = self.maybe_get_paginated(
@@ -117,13 +141,18 @@ class CanvasConnection:
         return result
 
     def maybe_get_paginated(
-        self, endpoint, params={}, headers={}, raise_on_error=False
+        self, endpoint, params={}, headers={}, raise_on_error=False, debug=True
     ) -> list[dict[str, Any]] | None:
         headers["Authorization"] = f"Bearer {self.token}"
         results = []
         endpoint = f"{self.base_url}{endpoint}"
+        params['per_page'] = 200
         while endpoint != None:
+            log_entry = self.debug_request('GET*', endpoint, params, headers, debug)
+            self.log.insert(0, log_entry)
+            
             req = requests.get(endpoint, params=params, headers=headers)
+            
             if req.ok:
                 results = results + req.json()
                 if "next" in req.links:
@@ -132,6 +161,7 @@ class CanvasConnection:
                     endpoint = None
                 params = None
             elif raise_on_error:
+                log_entry = log_entry._replace(result=req.status_code)
                 logger.error(
                     f"Request failed: {endpoint} {req.status_code} {req.reason}"
                 )
@@ -142,6 +172,7 @@ class CanvasConnection:
                 )
             else:
                 return None
+        log_entry = log_entry._replace(result=results)
         return results
 
     def get_term(self, root, term_id) -> dict[str, Any]:
@@ -196,9 +227,9 @@ class ObjectLikeDict(UserDict):
         return self.data[name]
 
     def __setattr__(self, name, value):
-        print("setattr", name, value)
+        #print("setattr", name, value)
         if "data" not in self.__dict__:
-            print("presetattr", name, value)
+            #print("presetattr", name, value)
             super().__setattr__(name, value)
         #                raise AttributeError(f"{type(self).__name__} object attribute 'data' is read-only")
         elif name not in self.__readonly__ or name not in self.data:

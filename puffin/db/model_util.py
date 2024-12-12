@@ -63,7 +63,7 @@ T = TypeVar('T', covariant=True)
 
 def new_id(session: sa.orm.Session, cls: Type[T]) -> int:
     with session.begin_nested() as ss:
-        id = Id(type=getattr(cls,'.__tablename__'))
+        id = Id(type=getattr(cls,'__tablename__'))
         session.add(id)
     return id.id
 
@@ -91,6 +91,8 @@ def update_from_uib(session: sa.orm.Session, row, course, changes=None, sync_tim
                                  {'firstname': firstname, 'lastname': lastname, 'email': row['email']})
 
     # get or create UiB user (has login name as user name)
+    if 'login_id' not in row:
+        logger.error('Missing login_id: %s', row)
     uib_user, creat2 = get_or_define(session, Account, {'username': row['login_id'], 'provider_name': 'canvas'},
                                      {'external_id': int(row['id']), 'user': user, 'email': row['email'], 'fullname': name})
     # if creat1 or creat2:
@@ -232,7 +234,7 @@ def check_group_membership(db: sa.orm.Session, course: Course, group: Group, use
         logger.info(f'check_group_membership(%s): user %s not enrolled in course %s',
                     group.slug, user.lastname, course)
 
-def check_unique(db: sa.orm.Session, cls : Type[Group], message:str, *clauses: tuple[str,sa.ColumnExpressionArgument]):
+def check_unique(db: sa.orm.Session, cls : Type[database.Base], message:str, *clauses: tuple[str,sa.ColumnExpressionArgument]):
     not_unique = []
     for (field, column_expr) in clauses:
         if db.execute(sa.select(cls).where(column_expr)).one_or_none():
@@ -255,17 +257,22 @@ TYPESCRIPT_TYPES = {
 TYPESCRIPT_TYPE_DEFAULTS = {
     dict: '{}'
 }
-
+TYPESCRIPT_ENUMS = [LogType, JoinModel, AssignmentModel]
 def to_typeScript(filename: str):
     with open(filename, 'w') as f:
         f.write('import { isEqual } from "lodash-es";')
         f.write('export const tables = {};\n')
+        f.write('function dateify(date?:Date|string) { if(date instanceof Date) return date.getTime(); else if(date) return new Date(date).getTime(); else return 0;}\n')
         for tbl in database._meta.tables:
             table_to_ts(''.join([t.capitalize() for t in tbl.split(
                 '_')]), database._meta.tables[tbl], f)
         for tbl in [CourseUser, UserAccount, FullUser]:
             table_to_ts(tbl.__name__, tbl.__table__, f)
         f.write(f'\nexport const PRIVILEGED_ROLES = {PRIVILEGED_ROLES}\n')
+        for enum in TYPESCRIPT_ENUMS:
+            f.write(f'\nexport const {enum.__name__} = { {n.name:n.value for n in enum} }\n')
+            f.write(f'\nexport const {enum.__name__}_NAMES = { [n.name for n in enum] }\n')
+            f.write(f'console.log({enum.__name__}, {enum.__name__}_NAMES)')
 
 
 def table_to_ts(name: str, table: sa.Table, f: IO):
@@ -308,6 +315,10 @@ def table_to_ts(name: str, table: sa.Table, f: IO):
             f.write('            changed = true;\n')
             f.write(f'            this.{col.name} = ' +
                     '{...jsonData.'+col.name+'};\n')
+        elif col.type.python_type == datetime:
+            f.write(f'        if(dateify(this.{col.name}) - dateify(jsonData.{col.name}) !== 0) ' + '{\n')
+            f.write('            changed = true;\n')
+            f.write(f'            this.{col.name} = jsonData.{col.name} ? new Date(jsonData.{col.name}) : null;\n')
         else:
             f.write(f'        if(this.{col.name} !== jsonData.{col.name}) ' + '{\n')
             f.write('            changed = true;\n')

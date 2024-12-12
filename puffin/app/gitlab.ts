@@ -1,8 +1,9 @@
 import { html, render } from 'uhtml';
 import { busy_event_handler, get_gitlab_project } from './puffin';
 import { BorbPanel } from 'puffin/borb/Frames';
-import { Course, Project } from './model';
+import { Course, Project, GitlabProject } from './model';
 import { GITLAB_PATH_RE, GITLAB_PREFIX, form_field } from './forms';
+
 
 type pick_project_form_data = {
     _error?: string;
@@ -12,6 +13,7 @@ type pick_project_form_data = {
     description?: string;
     name?: string;
     slug?: string;
+    project?: GitlabProject;
 };
 export async function pick_project_form(
     data: pick_project_form_data,
@@ -40,6 +42,7 @@ export async function pick_project_form(
                     data.description = proj.description;
                     data.name = proj.name;
                     data.slug = proj.path_with_namespace;
+                    data.project = proj;
                 } catch (e) {
                     data._error = e.userMessage;
                 }

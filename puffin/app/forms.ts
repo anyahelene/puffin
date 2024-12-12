@@ -86,14 +86,14 @@ export function form_select(data: Record<string, any>) {
             obj[field] = ref.current.value;
     };
     const formatOption = (alt: any, i: number) => {
-        let value: string, text: string;
+        let val: string, text: string;
         if (Array.isArray(alt)) {
-            value = alt[0];
+            val = alt[0];
             text = alt[1]?.toString();
         } else {
-            value = text = alt?.toString();
+            val = text = alt?.toString();
         }
-        return html`<option .selected=${data.default === value} value="${value}">${text}</option>`;
+        return html`<option .selected=${value === val} value="${val}">${text}</option>`;
     };
     if (data.editable)
         return html`<div class="form-field">

@@ -62,7 +62,9 @@ from puffin.db.model_tables import (
     Course,
     Group,
     Membership,
+    Assignment,
     PRIVILEGED_ROLES,
+    AssignmentModel,
 )
 
 current_user: User = current_user_proxy  # type:ignore
@@ -132,6 +134,33 @@ def get_group_or_fail(course, group_id_or_slug, privileged=False):
     return group
 
 
+def get_assignment(course: Course, asgn_id_or_slug):
+    if not course:
+        return None
+    asgn_id_or_slug = intify(asgn_id_or_slug)
+    if isinstance(asgn_id_or_slug, int):
+        where = and_(
+            Assignment.id == asgn_id_or_slug, Assignment.course_id == course.id
+        )
+    elif isinstance(asgn_id_or_slug, str):
+        where = and_(
+            Assignment.slug == asgn_id_or_slug, Assignment.course_id == course.id
+        )
+    else:
+        return None
+
+    return db.execute(select(Assignment).where(where)).scalar_one_or_none()
+
+
+def get_assignment_or_fail(course, asgn_id_or_slug):
+    asgn = get_assignment(course, asgn_id_or_slug)
+    if asgn == None:
+        raise ErrorResponse(
+            "No such accessible group", asgn_id_or_slug, status_code=404
+        )
+    return asgn
+
+
 def is_privileged(user, course):
     if user.is_admin:
         return True
@@ -196,12 +225,13 @@ class EditCourseForm(FlaskForm):
 
 
 @bp.route("/<course_spec>/", methods=["PUT", "POST"])
+@bp.route("/", methods=["POST"])
 @login_required
-def new_course(course_spec):
+def new_course(course_spec=None):
     if not current_user.is_admin:  # TODO?
         raise ErrorResponse("Access denied", status_code=403)
 
-    course = get_course(course_spec)
+    course = get_course(course_spec) if course_spec else None
     print(request.form)
     form = EditCourseForm()
     for k, v in form._fields.items():
@@ -213,7 +243,8 @@ def new_course(course_spec):
         if not form.canvas_id.validate(form):
             raise ErrorResponse("Bad request", status_code=400)
         if current_user.is_admin:
-            changes = changes + _create_course(int(course_spec))
+            course_spec = form.canvas_id.data  # TODO
+            changes = changes + _create_course(form.canvas_id.data)
             course = get_course(course_spec)
 
     if course:
@@ -1062,8 +1093,13 @@ def course_teams_sync_to_canvas(course_spec):
         members = [m for m in members if m != None]
         canvas_group.set_members(members)
     if len(groups_by_name) > 0:
-        logger.warn('leftover canvas groups after syncing all teams: %s', groups_by_name.keys())
-        flash(f'leftover canvas groups after syncing all teams: {groups_by_name.keys()}', category='warning')
+        logger.warn(
+            "leftover canvas groups after syncing all teams: %s", groups_by_name.keys()
+        )
+        flash(
+            f"leftover canvas groups after syncing all teams: {groups_by_name.keys()}",
+            category="warning",
+        )
     db.commit()
 
     return {}
@@ -1252,7 +1288,6 @@ def course_groups_sync(course_spec):
     canvas_course = CanvasCourse(cc, {"id": course.external_id})
     sections = canvas_course.get_sections_raw()
     for row in sections:
-        logger.info("section: %s", row)
         update_groups_from_uib(db, row, course, changes=changes, sync_time=sync_time)
     return changes
 
@@ -1264,11 +1299,15 @@ def canvas_courses():
         raise ErrorResponse("Access denied", status_code=403)
 
     cc: CanvasConnection = current_app.extensions["puffin_canvas_connection"]
-    courses = CanvasCourse.get_user_courses(cc)
+    courses = CanvasCourse.get_user_courses(cc, enrollment="teacher")
 
-    courses = [c.clean for c in courses]
-    ser = TaggedJSONSerializer()
-    print(ser.dumps(courses))
+    for c in courses:
+        print(c)
+    courses = [c.clean() for c in courses]
+    print("------------")
+    for c in courses:
+        print(json.dumps(c, indent=4))
+
     return [x for x in courses if x != None]
 
 
@@ -1391,3 +1430,120 @@ def get_gitlab_group(course_spec, path) -> Any:
                 raise ErrorResponse("Access denied", status_code=403)
         except GitlabOperationError as e:
             raise ErrorResponse("Not found", status_code=404)
+
+
+@bp.get("/<course_spec>/assignments/")
+@login_required
+def get_course_assignments(course_spec) -> Any:
+    course = get_course_or_fail(course_spec)
+    asgns = (
+        db.execute(select(Assignment).where(Assignment.course_id == course.id))
+        .scalars()
+        .all()
+    )
+
+    return [asgn.to_result(is_privileged(current_user, course)) for asgn in asgns]
+
+
+@bp.get("/<course_spec>/assignments/<asgn_spec>")
+@login_required
+def get_course_assignment(course_spec, asgn_spec) -> Any:
+    course = get_course_or_fail(course_spec)
+    asgn = get_assignment_or_fail(course, asgn_spec)
+
+    return asgn.to_result(is_privileged(current_user, course))
+
+
+class EditAssignmentForm(FlaskForm):
+    name = StringField("Assignment name", [validators.regexp(VALID_DISPLAY_NAME_REGEX)])
+    slug = StringField("Slug", [validators.regexp(VALID_SLUG_REGEX)])
+    description = StringField("Description")
+    assignment_model = StringField(
+        "Assignment model", [validators.any_of(AssignmentModel._member_names_)]
+    )
+    category = StringField("Category", [validators.regexp(VALID_SLUG_REGEX)])
+    gitlab_path = StringField(
+        "GitLab source project (with solution / all tests)",
+        [validators.regexp(VALID_SLUG_PATH_OR_EMPTY_REGEX)],
+    )
+    gitlab_root_path = StringField(
+        "GitLab project to be forked to students",
+        [validators.regexp(VALID_SLUG_PATH_OR_EMPTY_REGEX)],
+    )
+    gitlab_test_path = StringField(
+        "GitLab project with extra (non-student visible) tests",
+        [validators.regexp(VALID_SLUG_PATH_OR_EMPTY_REGEX)],
+    )
+    canvas_id = IntegerField("Corresponding assignment in Canvas")
+    release_date = DateTimeField(
+        "When the assignment should be published", format="%Y-%m-%dT%H:%M:%S"
+    )
+    due_date = DateTimeField("Default due date", format="%Y-%m-%dT%H:%M:%S")
+    grade_by_date = DateTimeField(
+        "Date when grading is due", format="%Y-%m-%dT%H:%M:%S"
+    )
+
+
+@bp.route("/<course_spec>/assignments/<asgn_spec>", methods=["PUT", "POST"])
+@bp.route("/<course_spec>/assignments/", methods=["POST"])
+@login_required
+def new_or_edit_course_assignment(course_spec, asgn_spec=None):
+    course = get_course_or_fail(course_spec)
+    if not is_privileged(current_user, course):
+        raise ErrorResponse("Access denied", status_code=403)
+
+    asgn = None if not asgn_spec else get_assignment_or_fail(course, asgn_spec)
+
+    print(request.form)
+    form: EditAssignmentForm = EditAssignmentForm()
+
+    for k, v in form._fields.items():
+        print(k, v, v(), v.raw_data, v.data)
+    changes = []
+    if not form.is_submitted():
+        raise ErrorResponse("Bad request: missing form", status_code=400)
+    if not form.validate():
+        logger.error("Bad request: %s", form.errors)
+        raise ErrorResponse("Bad request", status_code=400)
+    if not asgn:
+        check_unique(
+            db,
+            Assignment,
+            "Assignment already exists",
+            ("slug", Assignment.slug == form.slug.data),
+            ("course_id", Assignment.course_id == course.id),
+        )
+        if not form.slug.data:
+            raise ErrorResponse("Bad request: slug required", status_code=400)
+        asgn, created = get_or_define(
+            db,
+            Assignment,
+            {"slug": form.slug.data, "course_id": course.id},
+            {
+                "name": form.name.data or form.slug.data,
+            },
+        )
+
+    if asgn:
+        # + slug
+        for field_name in [
+            "name",
+            "description",
+            "assignment_model",
+            "category",
+            "gitlab_path",
+            "gitlab_root_path",
+            "gitlab_test_path",
+            "canvas_id",
+            "release_date",
+            "due_date",
+            "grade_by_date",
+        ]:
+            field = getattr(form, field_name)
+            if field.data != None:
+                setattr(asgn, field_name, field.data)
+        print(db.dirty)
+        for obj in db.dirty:
+            changes.append((obj.__tablename__, obj.id))
+        db.commit()
+    return changes

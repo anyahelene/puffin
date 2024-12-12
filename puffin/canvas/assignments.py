@@ -1,6 +1,7 @@
 from typing import Any
 from .lib import *
 import re
+import random
 
 
 class CanvasAssignment(CanvasCreatableObject):
@@ -269,7 +270,7 @@ class CanvasAssignment(CanvasCreatableObject):
 
     def get_submissions(self):
         result = []
-        for data in self.conn.get_paginated(f'courses/{self.course_id}/assignments/{self.id}/submissions',{'include':['group','submission_comments'], 'grouped': True}):
+        for data in self.conn.get_paginated(f'courses/{self.course_id}/assignments/{self.id}/submissions',{'include':['group','submission_comments'], 'grouped': True, 'per_page': 200}):
             data['course_id'] = self.course_id
             result.append(CanvasSubmission(self.conn, data))
             
@@ -280,9 +281,19 @@ class CanvasAssignment(CanvasCreatableObject):
         self.update(data)
         return self
 
+stickers = [s.strip() for s in "apple, basketball, bell, book, bookbag, briefcase, bus, calendar, chem, design, pencil, beaker, paintbrush, computer, column, pen, tablet, telescope, calculator, paperclip, composite_notebook, scissors, ruler, clock, globe, grad, gym, mail, microscope, mouse, music, notebook, page, panda1, panda2, panda3, panda4, panda5, panda6, panda7, panda8, panda9, presentation, science, science2, star, tag, tape, target, trophy".split(",")]
+
+def normalize_grade(grade):
+        if grade == 'pass':
+            grade = 'complete'
+        elif grade == 'fail':
+            grade = 'incomplete'
+        return grade
+
 class CanvasSubmission(CanvasCreatableObject):
     __create_path__ = "courses/{course_id}/assignments/{assignment_id}/submissions"
     __get_path__ = "courses/{course_id}/assignments/{assignment_id}/submissions/{user_id}"
+    __put_path__ = "courses/{course_id}/assignments/{assignment_id}/submissions/{user_id}"
     __list_path__ = "courses/{course_id}/assignments/{assignment_id}/submissions"
 
     course_id : int
@@ -301,6 +312,29 @@ class CanvasSubmission(CanvasCreatableObject):
         data = self.conn.get_single(CanvasSubmission.__get_path__.format(course_id = self.course_id, assignment_id = self.assignment_id, user_id = self.user_id), {'include':['submission_comments']})
         self.update(data)
         return self
+
+    def post_grade(self, posted_grade : float|str|int):
+
+        if normalize_grade(self.grade) == normalize_grade(posted_grade):
+            print(f'grade {posted_grade} already set for {self.user_id}')
+            return self
+        else:
+            print(f'setting grade {posted_grade} for {self.user_id}')
+
+        sticker = random.choice(stickers)
+
+        data = {
+            'submission' : {
+                'posted_grade' : posted_grade,
+                'sticker' : sticker,
+            }
+        }
+
+        result = self.conn.put(CanvasSubmission.__put_path__.format(course_id = self.course_id, assignment_id = self.assignment_id, user_id = self.user_id), data, debug = True)
+        self.update(result)
+
+        return self
+
     
     def find_name_in_comment(self, firstname : str, lastname : str):
         if self.submission_comments == None:

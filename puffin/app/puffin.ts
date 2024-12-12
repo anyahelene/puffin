@@ -1,7 +1,7 @@
 import { html } from 'uhtml';
 import { BorbPanelBuilder } from '../borb/Frames';
 import { show_flash } from './flashes';
-import { Course, Group, User, tables } from './model';
+import { Course, Group, Project, User, tables, GitlabProject, Assignment } from './model';
 export let csrf_token: string = undefined;
 
 export const puffin: Record<string, object> = {
@@ -10,12 +10,13 @@ export const puffin: Record<string, object> = {
 
 export function modify_table(
     table: string | ColumnSpec[],
-    entry_name: string,
+    entry_names: string | string[],
     f: (entry: ColumnSpec) => void,
 ) {
+    entry_names = Array.isArray(entry_names) ? entry_names : [entry_names];
+    
     const _table = Array.isArray(table) ? table : (tables[table] as ColumnSpec[]);
-
-    return _table.find((entry) => {
+    const patch =  (entry_name:string) => _table.find((entry) => {
         if (entry.name === entry_name) {
             f(entry);
             return true;
@@ -23,6 +24,7 @@ export function modify_table(
             return false;
         }
     });
+    entry_names.forEach(entry_name => patch(entry_name));
 }
 export function add_to_table(table: string | ColumnSpec[], entry_name: string, entry: ColumnSpec) {
     const _table = Array.isArray(table) ? table : (tables[table] as ColumnSpec[]);
@@ -35,6 +37,20 @@ export function add_to_table(table: string | ColumnSpec[], entry_name: string, e
 tables['FullUser'].push({ name: 'team', type: 'group[]', filter: '' });
 tables['FullUser'].push({ name: 'section', type: 'group[]', filter: '' });
 //tables['FullUser'].push({ name: 'groups', type: 'group[]', filter: '' });
+modify_table('FullUser', ['firstname', 'lastname'], (entry) => {
+    entry.mapping = (field, obj, spec) =>
+        field
+            ? html.node`${obj.as_link(field)}`
+            : '';
+    entry.type = 'custom';
+});
+modify_table('Assignment', ['name', 'slug'], (entry) => {
+    entry.mapping = (field, obj, spec) =>
+        field
+            ? html.node`${obj.as_link(field)}`
+            : '';
+    entry.type = 'custom';
+});
 modify_table('FullUser', 'canvas_username', (entry) => {
     entry.mapping = (field, obj, spec) =>
         field
@@ -55,8 +71,7 @@ modify_table('FullUser', 'gitlab_username', (entry) => {
 });
 modify_table('FullUser', 'join_model', (entry) => {
     entry.action = (field, obj, spec, currentRow) => {
-        if (obj.join_model === 'REMOVED')
-            currentRow.classList.add('removed')
+        if (obj.join_model === 'REMOVED') currentRow.classList.add('removed');
     };
     entry.type = 'action';
 });
@@ -183,7 +198,12 @@ interface ColumnSpec {
     head?: string;
     type?: string;
     mapping?: (val: any, obj: Record<string, any>, spec: ColumnSpec) => HTMLElement | string; // TODO
-    action?: (val: any, obj: Record<string, any>, spec: ColumnSpec, currentRow?: HTMLElement) => void; // TODO
+    action?: (
+        val: any,
+        obj: Record<string, any>,
+        spec: ColumnSpec,
+        currentRow?: HTMLElement,
+    ) => void; // TODO
     doc?: string;
     hide?: boolean;
     icons?: Record<string, string>;
@@ -206,7 +226,7 @@ function keys(obj) {
     return keys;
 }
 export function user_emails(users: User[]) {
-    return users.map(u => `${u?.firstname} ${u?.lastname} <${u?.email}>`).join(', ');
+    return users.map((u) => `${u?.firstname} ${u?.lastname} <${u?.email}>`).join(', ');
 }
 
 export function handle_internal_link(ev: MouseEvent) {
@@ -218,6 +238,16 @@ export function handle_internal_link(ev: MouseEvent) {
                 console.log('handle_internal_link', target, parseInt(target), ev.target);
                 const group: Group = Course.current.groupsById[parseInt(target)];
                 group.display();
+                break;
+            case 'user':
+                console.log('handle_internal_link', target, parseInt(target), ev.target);
+                const user: User = Course.current.usersById[parseInt(target)];
+                user.display();
+                break;
+            case 'assignment':
+                console.log('handle_internal_link', target, parseInt(target), ev.target);
+                const asgn: Assignment = Course.current.assignmentsById[parseInt(target)];
+                asgn.display();
                 break;
         }
     }
@@ -310,12 +340,7 @@ export function to_table(
     const columns = cols
         .map((c) => getColumnInfo(c))
         .filter(
-            (c) =>
-                !(
-                    c.type === 'meta' ||
-                    c.name.startsWith('_') ||
-                    hide_columns.includes(c.name)
-                ),
+            (c) => !(c.type === 'meta' || c.name.startsWith('_') || hide_columns.includes(c.name)),
         );
     //console.log(type, more_types, columns);
     let allbox: HTMLInputElement = null;
@@ -388,12 +413,11 @@ export function to_table(
             if (spec.icons) content = spec.icons[`${value}`] || spec.icons[''] || value;
             else if (spec.type === 'bool')
                 content = typeof value === 'string' ? value : value ? '✅' : '❌';
-            else if (value instanceof Date) content = value?.toLocaleDateString();
+            else if (value instanceof Date) content = value?.toDateString();
             else if (value === undefined || value === null) {
                 content = '';
             }
-            if (spec.hide)
-                continue;
+            if (spec.hide) continue;
             let elt: HTMLElement;
             switch (spec.type) {
                 case 'action':
@@ -406,7 +430,8 @@ export function to_table(
                     elt = cell(html.node`<img src="${value}">`);
                     break;
                 case 'datetime':
-                    elt = cell(value?.toLocaleDateString() || '');
+                    console.log(value);
+                    elt = cell(value?.toDateString() || '');
                     break;
                 case 'user[]':
                     elt = cell(value.map((u: User) => u.lastname).join(', '));
@@ -446,7 +471,7 @@ export function to_table(
 export async function get_gitlab_project(
     course: Course | number,
     project_ref: string,
-): Promise<Record<string, any>> {
+): Promise<GitlabProject> {
     if (project_ref) {
         if (typeof project_ref === 'string' && project_ref.startsWith('http'))
             project_ref = new URL(project_ref).pathname;
@@ -556,13 +581,8 @@ export function gitlab_url(path: string) {
 }
 
 export function readable_size(n: number) {
-    if (typeof n !== 'number')
-        return '?';
-    if (n < 1024)
-        return `${n} bytes`;
-    else if (n < 1024 * 1024)
-        return `${Math.round(n / 1024)} KiB`;
-    else if (n < 1024 * 1024 * 1024)
-        return `${Math.round(n / 1024 / 1024)} MiB`;
-
+    if (typeof n !== 'number') return '?';
+    if (n < 1024) return `${n} bytes`;
+    else if (n < 1024 * 1024) return `${Math.round(n / 1024)} KiB`;
+    else if (n < 1024 * 1024 * 1024) return `${Math.round(n / 1024 / 1024)} MiB`;
 }

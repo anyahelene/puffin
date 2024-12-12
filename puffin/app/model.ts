@@ -21,6 +21,7 @@ import { CourseView } from './courses';
 import { BorbPanelBuilder } from '../borb/Frames';
 import { BorbButton } from '../borb/Buttons';
 import { show_flash } from './flashes';
+import { edit_assignment_form } from './assignments';
 
 type Membership = _Membership;
 export class Group extends _Group {
@@ -233,6 +234,11 @@ export class Assignment extends _Assignment {
     _gitlab_root_project: Project;
     gitlab_test_project: Project;
     _gitlab_test_project: Project;
+
+    constructor(jsonData: Record<string, any> | _Assignment, course:Course, revision?: number) {
+        super(jsonData, revision);
+        this.course = course;
+    }
     set course(course: Course) {
         this._course = course;
         this.course_id = course.external_id;
@@ -243,12 +249,12 @@ export class Assignment extends _Assignment {
 
     as_link(link_text: string = undefined) {
         link_text = link_text ? link_text : this.slug;
-        return html`<a data-type="assignment" data-target=${this.id} onclick=${handle_internal_link} href=${`group://${this.id}`}>${link_text}</a>`;
+        return html`<a data-type="assignment" data-target=${this.id} onclick=${handle_internal_link} href=${`assignment://${this.id}`}>${link_text}</a>`;
     }
     has_valid_gitlab_path() {
         console.log(this);
-        if (!this._gitlab_path) this._gitlab_path = `${this.gitlab_id}`;
-        return this.gitlab_id && this.json_data['gitlab_path'] === this._gitlab_path;
+        if (!this._gitlab_path) this._gitlab_path =  this.json_data['gitlab_path'];
+        return this.json_data['gitlab_path'] &&  this.json_data['gitlab_path'] === this._gitlab_path;
     }
     has_valid_gitlab_test_path() {
         console.log(this);
@@ -260,7 +266,7 @@ export class Assignment extends _Assignment {
     }
     async updateAssignment(): Promise<Assignment> {
         if (this.course && this.id) {
-            const data = await request(`courses/${this.course.external_id}/${this.id}`);
+            const data = await request(`courses/${this.course.external_id}/assignments/${this.id}`);
             this.revision++;
             this.update(data, this.revision);
             this._original = data;
@@ -284,6 +290,10 @@ export class Assignment extends _Assignment {
         });
         return diff;
     }
+    display() {
+        console.log('display assignment', this);
+        edit_assignment_form(this);
+    }
 }
 export class User extends _FullUser {
     _original: _User;
@@ -306,10 +316,13 @@ export class User extends _FullUser {
     }
     as_link(link_text: string = undefined) {
         link_text = link_text ? link_text : `${this.firstname} ${this.lastname}`;
-        return html`<a data-type="user" data-target=${this.id} onclick=${handle_internal_link} href=${`group://${this.id}`}>${link_text}</a>`;
+        return html`<a data-type="user" data-target=${this.id} onclick=${handle_internal_link} href=${`user://${this.id}`}>${link_text}</a>`;
     }
     get is_privileged() {
         return PRIVILEGED_ROLES.indexOf(this.role) != -1;
+    }
+    display() {
+        console.log('display user', this);
     }
 }
 export class SelfUser extends _User {
@@ -370,6 +383,9 @@ export class Course extends _Course {
     public groups: Group[] = [];
     public groupsById: Group[] = [];
     public groupsBySlug: Map<string, Group> = new Map();
+    public assignments: Assignment[] = [];
+    public assignmentsBySlug: Map<string, Assignment> = new Map();;
+    public assignmentsById: Assignment[] = [];
 
     has_valid_gitlab_path() {
         if (!this._gitlab_path) this._gitlab_path = this.json_data['gitlab_path'];
@@ -447,6 +463,7 @@ export class Course extends _Course {
         await this.updateUsers();
         await this.updateGroups();
         await this.updateMemberships();
+        await this.updateAssignments();
         return this;
     }
     async updateUsers(): Promise<User[]> {
@@ -496,12 +513,34 @@ export class Course extends _Course {
             u?.memberships.set(m.group_id, m2);
         });
     }
-
+    async updateAssignments(): Promise<Assignment[]> {
+        const as: _Assignment[] = await request(`courses/${this.external_id}/assignments/`);
+        this.assignments = [];
+        this.assignmentsBySlug.clear();
+        as.forEach((a) => {
+            const asgn = this.assignmentsById[a.id] || new Assignment(a, this);
+            asgn.update(a, this.revision);
+            asgn._original = a;
+            this.assignments.push(asgn);
+            this.assignmentsBySlug.set(asgn.slug, asgn);
+        });
+        this.assignmentsById = to_arraymap(this.assignments);
+        return this.assignments;
+    }
     clone_team_projects() {
         return this.groups.filter(g => g.kind === 'team').map(t => `[ ! -f ${t.slug} ] && git clone git@git.app.uib.no:${t.json_data.project_path} ${t.slug} && sleep 2`);
     }
     as_link(link_text: string = undefined) {
         link_text = link_text ? link_text : `${this.slug}`;
         return html`<a data-type="course" data-target=${this.id} onclick=${handle_internal_link} href=${`group://${this.id}`}>${link_text}</a>`;
+    }
+}
+
+
+export class GitlabProject extends Project {
+    [key: string] : any
+
+    constructor(jsonData: Record<string, any>, revision?: number) {
+        super(jsonData, revision);
     }
 }

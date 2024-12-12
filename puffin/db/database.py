@@ -79,7 +79,7 @@ def init(app:Flask|None):
     from . import auth_model, model_tables, model_views, model_util
     for cls in model_tables.logged_tables:
         model_util.create_triggers(cls, db_scoped_session)
-
+        
     _viewmeta.drop_all(engine)
     _viewmeta.create_all(engine)
     if app and app.config.get('PUFFIN_SUPER_USER') and app.config.get('PUFFIN_SUPER_PASSWORD'):

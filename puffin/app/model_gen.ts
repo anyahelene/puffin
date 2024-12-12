@@ -1,4 +1,5 @@
 import { isEqual } from "lodash-es";export const tables = {};
+function dateify(date?:Date|string) { if(date instanceof Date) return date.getTime(); else if(date) return new Date(date).getTime(); else return 0;}
 export class _AuditLog {
     revision : number;
     id : number;
@@ -25,9 +26,9 @@ export class _AuditLog {
         if(this.id !== jsonData.id) throw new Error("Data doesn't match ID");
         this.revision = revision;
         let changed = false;
-        if(this.timestamp !== jsonData.timestamp) {
+        if(dateify(this.timestamp) - dateify(jsonData.timestamp) !== 0) {
             changed = true;
-            this.timestamp = jsonData.timestamp;
+            this.timestamp = jsonData.timestamp ? new Date(jsonData.timestamp) : null;
         }
         if(!isEqual(this.old_data, jsonData.old_data)) {
             changed = true;
@@ -164,9 +165,9 @@ export class _Account {
             changed = true;
             this.username = jsonData.username;
         }
-        if(this.expiry_date !== jsonData.expiry_date) {
+        if(dateify(this.expiry_date) - dateify(jsonData.expiry_date) !== 0) {
             changed = true;
-            this.expiry_date = jsonData.expiry_date;
+            this.expiry_date = jsonData.expiry_date ? new Date(jsonData.expiry_date) : null;
         }
         if(this.email !== jsonData.email) {
             changed = true;
@@ -184,9 +185,9 @@ export class _Account {
             changed = true;
             this.email_verified = jsonData.email_verified;
         }
-        if(this.last_login !== jsonData.last_login) {
+        if(dateify(this.last_login) - dateify(jsonData.last_login) !== 0) {
             changed = true;
-            this.last_login = jsonData.last_login;
+            this.last_login = jsonData.last_login ? new Date(jsonData.last_login) : null;
         }
         if(this.avatar_url !== jsonData.avatar_url) {
             changed = true;
@@ -295,9 +296,9 @@ export class _Course {
             changed = true;
             this.slug = jsonData.slug;
         }
-        if(this.expiry_date !== jsonData.expiry_date) {
+        if(dateify(this.expiry_date) - dateify(jsonData.expiry_date) !== 0) {
             changed = true;
-            this.expiry_date = jsonData.expiry_date;
+            this.expiry_date = jsonData.expiry_date ? new Date(jsonData.expiry_date) : null;
         }
         if(!isEqual(this.json_data, jsonData.json_data)) {
             changed = true;
@@ -639,9 +640,9 @@ export class _User {
             changed = true;
             this.locale = jsonData.locale;
         }
-        if(this.expiry_date !== jsonData.expiry_date) {
+        if(dateify(this.expiry_date) - dateify(jsonData.expiry_date) !== 0) {
             changed = true;
-            this.expiry_date = jsonData.expiry_date;
+            this.expiry_date = jsonData.expiry_date ? new Date(jsonData.expiry_date) : null;
         }
         return changed;
     }
@@ -695,9 +696,9 @@ export class _Assignment {
     category : string;
     course_id : number;
     assignment_model : 'GITLAB_STUDENT_FORK'|'GITLAB_GROUP_FORK'|'GITLAB_GROUP_PROJECT'|'GITLAB_STUDENT_PROJECT';
-    gitlab_id? : number;
-    gitlab_root_id? : number;
-    gitlab_test_id? : number;
+    gitlab_path? : string;
+    gitlab_root_path? : string;
+    gitlab_test_path? : string;
     canvas_id? : string;
     release_date? : Date;
     due_date? : Date;
@@ -744,33 +745,33 @@ export class _Assignment {
             changed = true;
             this.assignment_model = jsonData.assignment_model;
         }
-        if(this.gitlab_id !== jsonData.gitlab_id) {
+        if(this.gitlab_path !== jsonData.gitlab_path) {
             changed = true;
-            this.gitlab_id = jsonData.gitlab_id;
+            this.gitlab_path = jsonData.gitlab_path;
         }
-        if(this.gitlab_root_id !== jsonData.gitlab_root_id) {
+        if(this.gitlab_root_path !== jsonData.gitlab_root_path) {
             changed = true;
-            this.gitlab_root_id = jsonData.gitlab_root_id;
+            this.gitlab_root_path = jsonData.gitlab_root_path;
         }
-        if(this.gitlab_test_id !== jsonData.gitlab_test_id) {
+        if(this.gitlab_test_path !== jsonData.gitlab_test_path) {
             changed = true;
-            this.gitlab_test_id = jsonData.gitlab_test_id;
+            this.gitlab_test_path = jsonData.gitlab_test_path;
         }
         if(this.canvas_id !== jsonData.canvas_id) {
             changed = true;
             this.canvas_id = jsonData.canvas_id;
         }
-        if(this.release_date !== jsonData.release_date) {
+        if(dateify(this.release_date) - dateify(jsonData.release_date) !== 0) {
             changed = true;
-            this.release_date = jsonData.release_date;
+            this.release_date = jsonData.release_date ? new Date(jsonData.release_date) : null;
         }
-        if(this.due_date !== jsonData.due_date) {
+        if(dateify(this.due_date) - dateify(jsonData.due_date) !== 0) {
             changed = true;
-            this.due_date = jsonData.due_date;
+            this.due_date = jsonData.due_date ? new Date(jsonData.due_date) : null;
         }
-        if(this.grade_by_date !== jsonData.grade_by_date) {
+        if(dateify(this.grade_by_date) - dateify(jsonData.grade_by_date) !== 0) {
             changed = true;
-            this.grade_by_date = jsonData.grade_by_date;
+            this.grade_by_date = jsonData.grade_by_date ? new Date(jsonData.grade_by_date) : null;
         }
         if(!isEqual(this.json_data, jsonData.json_data)) {
             changed = true;
@@ -814,20 +815,20 @@ export const Assignment_columns = [
         form: {"select": "assignment_model"},
     },
     {
-        name: "gitlab_id",
-        type: "int",
+        name: "gitlab_path",
+        type: "str",
         doc: "GitLab source project (with solution / all tests)",
         form: "gitlab:project",
     },
     {
-        name: "gitlab_root_id",
-        type: "int",
+        name: "gitlab_root_path",
+        type: "str",
         doc: "GitLab project to be forked to students",
         form: "gitlab:root_project",
     },
     {
-        name: "gitlab_test_id",
-        type: "int",
+        name: "gitlab_test_path",
+        type: "str",
         doc: "GitLab project with extra (non-student visible) tests",
         form: "gitlab:test_project",
     },
@@ -896,13 +897,13 @@ export class _Grader {
             changed = true;
             this.student_assignment_id = jsonData.student_assignment_id;
         }
-        if(this.grade_by_date !== jsonData.grade_by_date) {
+        if(dateify(this.grade_by_date) - dateify(jsonData.grade_by_date) !== 0) {
             changed = true;
-            this.grade_by_date = jsonData.grade_by_date;
+            this.grade_by_date = jsonData.grade_by_date ? new Date(jsonData.grade_by_date) : null;
         }
-        if(this.graded_date !== jsonData.graded_date) {
+        if(dateify(this.graded_date) - dateify(jsonData.graded_date) !== 0) {
             changed = true;
-            this.graded_date = jsonData.graded_date;
+            this.graded_date = jsonData.graded_date ? new Date(jsonData.graded_date) : null;
         }
         if(this.grade_points !== jsonData.grade_points) {
             changed = true;
@@ -988,9 +989,9 @@ export class _StudentAssignment {
             changed = true;
             this.canvas_id = jsonData.canvas_id;
         }
-        if(this.due_date !== jsonData.due_date) {
+        if(dateify(this.due_date) - dateify(jsonData.due_date) !== 0) {
             changed = true;
-            this.due_date = jsonData.due_date;
+            this.due_date = jsonData.due_date ? new Date(jsonData.due_date) : null;
         }
         if(!isEqual(this.json_data, jsonData.json_data)) {
             changed = true;
@@ -1193,9 +1194,9 @@ export class _ProjectTestRun {
             changed = true;
             this.project_id = jsonData.project_id;
         }
-        if(this.timestamp !== jsonData.timestamp) {
+        if(dateify(this.timestamp) - dateify(jsonData.timestamp) !== 0) {
             changed = true;
-            this.timestamp = jsonData.timestamp;
+            this.timestamp = jsonData.timestamp ? new Date(jsonData.timestamp) : null;
         }
         if(this.compile_passed !== jsonData.compile_passed) {
             changed = true;
@@ -1287,13 +1288,13 @@ export class _LastSync {
             changed = true;
             this.obj_type = jsonData.obj_type;
         }
-        if(this.sync_incoming !== jsonData.sync_incoming) {
+        if(dateify(this.sync_incoming) - dateify(jsonData.sync_incoming) !== 0) {
             changed = true;
-            this.sync_incoming = jsonData.sync_incoming;
+            this.sync_incoming = jsonData.sync_incoming ? new Date(jsonData.sync_incoming) : null;
         }
-        if(this.sync_outgoing !== jsonData.sync_outgoing) {
+        if(dateify(this.sync_outgoing) - dateify(jsonData.sync_outgoing) !== 0) {
             changed = true;
-            this.sync_outgoing = jsonData.sync_outgoing;
+            this.sync_outgoing = jsonData.sync_outgoing ? new Date(jsonData.sync_outgoing) : null;
         }
         return changed;
     }
@@ -1429,9 +1430,9 @@ export class _Oauth2token {
             changed = true;
             this.refresh_token = jsonData.refresh_token;
         }
-        if(this.expires_at !== jsonData.expires_at) {
+        if(dateify(this.expires_at) - dateify(jsonData.expires_at) !== 0) {
             changed = true;
-            this.expires_at = jsonData.expires_at;
+            this.expires_at = jsonData.expires_at ? new Date(jsonData.expires_at) : null;
         }
         if(this.user_id !== jsonData.user_id) {
             changed = true;
@@ -1879,3 +1880,16 @@ export const FullUser_columns = [
 tables["FullUser"] = FullUser_columns;
 
 export const PRIVILEGED_ROLES = ['ta', 'teacher', 'admin']
+
+export const LogType = {'UPDATE': 'UPDATE', 'INSERT': 'INSERT', 'DELETE': 'DELETE'}
+
+export const LogType_NAMES = ['UPDATE', 'INSERT', 'DELETE']
+console.log(LogType, LogType_NAMES)
+export const JoinModel = {'RESTRICTED': 'Restricted – members of the parent group can join freely', 'OPEN': 'Open – users can join/leave freely', 'AUTO': 'Auto – users are automatically added to this group', 'CLOSED': 'Closed – group owner must add users', 'REMOVED': 'Removed – user was manually removed from group'}
+
+export const JoinModel_NAMES = ['RESTRICTED', 'OPEN', 'AUTO', 'CLOSED', 'REMOVED']
+console.log(JoinModel, JoinModel_NAMES)
+export const AssignmentModel = {'GITLAB_STUDENT_FORK': 'Gitlab project forked to each student', 'GITLAB_GROUP_FORK': 'Gitlab project forked to each student group', 'GITLAB_GROUP_PROJECT': 'Gitlab project created by student group', 'GITLAB_STUDENT_PROJECT': 'Gitlab project created by student'}
+
+export const AssignmentModel_NAMES = ['GITLAB_STUDENT_FORK', 'GITLAB_GROUP_FORK', 'GITLAB_GROUP_PROJECT', 'GITLAB_STUDENT_PROJECT']
+console.log(AssignmentModel, AssignmentModel_NAMES)

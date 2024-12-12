@@ -114,7 +114,7 @@ class GitlabConnection:
         self,
         session: sa.orm.Session,
         user: PuffinUser,
-        verify=False,
+        verify=True,
         sync_time: datetime = None, # type:ignore
         gitusername: str = None, # type:ignore
     ) -> Account:
@@ -144,6 +144,7 @@ class GitlabConnection:
                         gituser = more_users[0]  # type:ignore
 
             if gituser:
+                logger.info("Defined gitlab account: %s %s %s %s", user, gituser.username, gituser.id, gituser.name)
                 acc = define_gitlab_account(
                     session,
                     user,
@@ -159,9 +160,9 @@ class GitlabConnection:
                         "Missing GitLab user – maybe not registered yet? %s", user
                     )
                 else:
-                    logger.warn("Missing GitLab user: %s", user)
+                    logger.warning("Missing GitLab user: %s", user)
             else:
-                logger.warn("Ambiguous GitLab user: %s: %s", user, users)
+                logger.warning("Ambiguous GitLab user: %s: %s", user, users)
         elif verify:
             gituser = self.gl.users.get(acc.external_id)  # type:ignore
             if gituser:
@@ -175,6 +176,13 @@ class GitlabConnection:
                     )
                     acc.username = gituser.username
                     session.add(acc)
+                if gituser.name != acc.fullname:
+                    logger.info("Gitlab user %s: name change: %s → %s", gituser.name, acc.fullname, gituser.name)
+                    acc.fullname = gituser.name
+                    session.add(acc)
+                if gituser.state != 'active':
+                    logger.warning("Gitlab user %s: not active: state=%s", gituser.name, gituser.state)
+                session.commit()
             else:
                 logger.error(
                     "GitLab user %d doesn't exist: account=%s, user=%s",

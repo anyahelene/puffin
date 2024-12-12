@@ -68,7 +68,6 @@ class _courses {
     edit_course(course: Course, editable = true, select = true) {
         const panel = this.get_course_panel(course, select);
 
-
         const edit = (ev) => {
             editable = true;
             course.clear_log();
@@ -101,14 +100,16 @@ class _courses {
                 course.log('Changes saved');
                 await course.updateCourse();
             },
-            () => redraw(), course
+            () => redraw(),
+            course,
         );
         const cancel = busy_event_handler(
             async (ev) => {
                 editable = false;
                 await course.updateCourse();
             },
-            () => redraw(), course
+            () => redraw(),
+            course,
         );
         const reset = busy_event_handler(
             async (ev) => {
@@ -120,7 +121,8 @@ class _courses {
                     course.log('Refreshed from Canvas');
                 }
             },
-            () => redraw(), course,
+            () => redraw(),
+            course,
         );
         const check_gitlab = (data: any) => {
             return busy_event_handler(
@@ -131,11 +133,12 @@ class _courses {
                             data.ref.current.value =
                                 course[data.field] =
                                 course.json_data[data.field.replace(/^_/, '')] =
-                                g.full_path;
+                                    g.full_path;
                         }
                     }
                 },
-                redraw, course,
+                redraw,
+                course,
                 [data.ref],
             );
         };
@@ -167,65 +170,77 @@ class _courses {
                 panel,
                 html`
                     ${form_field({
-                    editable,
-                    obj: course,
-                    name: 'Name',
-                    field: 'name',
-                    required: true,
-                })}
+                        editable,
+                        obj: course,
+                        name: 'Name',
+                        field: 'name',
+                        required: true,
+                    })}
                     ${form_field({
-                    editable,
-                    obj: course,
-                    name: 'Canvas course',
-                    type: 'number',
-                    field: 'external_id',
-                    required: true,
-                    disabled: course.external_id !== 0,
-                })}
+                        editable,
+                        obj: course,
+                        name: 'Canvas course',
+                        type: 'number',
+                        field: 'external_id',
+                        required: true,
+                        disabled: course.external_id !== 0,
+                    })}
                     ${form_field({
-                    editable,
-                    obj: course,
-                    pattern: `^${GITLAB_PATH_RE}(/${GITLAB_PATH_RE})*$`,
-                    name: 'Gitlab path',
-                    field: '_gitlab_path',
-                    link_prefix: course.has_valid_gitlab_path() ? GITLAB_PREFIX : undefined,
-                    button_make_onclick: check_gitlab,
-                    button_class: course.has_valid_gitlab_path() ? 'check-ok' : 'check-unknown',
-                    button_title: editable ? 'Check' : undefined,
-                })}
+                        editable,
+                        obj: course,
+                        pattern: `^${GITLAB_PATH_RE}(/${GITLAB_PATH_RE})*$`,
+                        name: 'Gitlab path',
+                        field: '_gitlab_path',
+                        link_prefix: course.has_valid_gitlab_path() ? GITLAB_PREFIX : undefined,
+                        button_make_onclick: check_gitlab,
+                        button_class: course.has_valid_gitlab_path() ? 'check-ok' : 'check-unknown',
+                        button_title: editable ? 'Check' : undefined,
+                    })}
                     ${form_field({
-                    editable,
-                    obj: course,
-                    pattern: `^${GITLAB_PATH_RE}(/${GITLAB_PATH_RE})*$`,
-                    name: 'Gitlab student path',
-                    field: '_gitlab_student_path',
-                    link_prefix: course.has_valid_gitlab_student_path()
-                        ? GITLAB_PREFIX
-                        : undefined,
-                    button_make_onclick: check_gitlab,
-                    button_class: course.has_valid_gitlab_student_path()
-                        ? 'check-ok'
-                        : 'check-unknown',
-                    button_title: editable ? 'Check' : undefined,
-                })}
+                        editable,
+                        obj: course,
+                        pattern: `^${GITLAB_PATH_RE}(/${GITLAB_PATH_RE})*$`,
+                        name: 'Gitlab student path',
+                        field: '_gitlab_student_path',
+                        link_prefix: course.has_valid_gitlab_student_path()
+                            ? GITLAB_PREFIX
+                            : undefined,
+                        button_make_onclick: check_gitlab,
+                        button_class: course.has_valid_gitlab_student_path()
+                            ? 'check-ok'
+                            : 'check-unknown',
+                        button_title: editable ? 'Check' : undefined,
+                    })}
                     <div class="form-control">
                         <button type="button" onclick=${cancel} ?disabled=${!editable}
                             >❌ Cancel Edit</button
                         >
                         <button type="button" onclick=${reset} ?disabled=${!editable}
                             >🏫 Reset to Canvas defaults</button
-                        > </div
-                    >
+                        >
+                    </div>
                     <div class="form-control">
                         <button type="button" onclick=${editable ? save : edit}
                             >${editable
-                        ? '💾 Save Course Settings'
-                        : '🖊️ Edit Course Settings'}</button
-                        > </div
-                    >
+                                ? '💾 Save Course Settings'
+                                : '🖊️ Edit Course Settings'}</button
+                        >
+                    </div>
                     <div class="form-control">
-                    <button type="button" data-text="Sync course data" onclick=${sync_all}>Sync course data</button></div>
-                    <div><a href=${`courses/${course.external_id}/users/?details=true&csv=true`} target="_blank">Users as CSV</a></div>
+                        <button type="button" data-text="Sync course data" onclick=${sync_all}
+                            >Sync course data</button
+                        ></div
+                    >
+                    <div
+                        ><a
+                            href=${`courses/${course.external_id}/users/?details=true&csv=true`}
+                            target="_blank"
+                            >Users as CSV</a
+                        ></div
+                    >
+                        <div>
+                        ${to_table({_type:'Assignment[]', data:course.assignments})}
+                        </div>
                     <div class="log">
                         ${course._log.map(
                             (entry) => html`<li class=${entry[0]}>${entry[1]}</li>`,
@@ -243,28 +258,40 @@ class _courses {
             panel,
             html`
                 <h1>${course.name}</h1>
-                <div class="buttons">
-
-                </div>
+                <div class="buttons"> </div>
             `,
         );
     }
 
-    async add_course() {
-        const panel = this.get_course_panel(null);
-        const canvas_courses: Record<string, any>[] = await request('courses/canvas');
-        const now = new Date();
-        canvas_courses.forEach((course) => {
-            course.start_at = new Date(course.start_at);
-            course.end_at = new Date(course.end_at);
-            if (course.end_at < now) course.workflow_state = 'finished';
-        });
-        canvas_courses.sort((a, b) => b.start_at - a.start_at);
-        panel.replaceChildren(...to_table(canvas_courses));
+    async add_course(canvas_courses?: Record<string, any>[], canvas_id?: number) {
+        if(!canvas_courses) {
+            const panel = this.get_course_panel(null);
+            canvas_courses = await request('courses/canvas');
+            const now = new Date();
+            canvas_courses.forEach((course) => {
+                course.start_at = new Date(course.start_at);
+                course.end_at = new Date(course.end_at);
+                if (course.end_at < now) course.workflow_state = 'finished';
+            });
+            canvas_courses.sort((a, b) => b.start_at - a.start_at);
+            panel.replaceChildren(...to_table(canvas_courses));
+        }
+        if (canvas_id) {
+            const course = canvas_courses.find(course => course.id === canvas_id);
+            console.log('add_course payload:', course);
+            if(course) {
+                const result = await request('courses/','POST', course)
+                console.log('add_course result:', result);
+                await Course.updateCourses();
+            } else {
+                // ERROR
+            }
+        } 
+        return canvas_courses;
     }
 
     set_course_view(select = true) {
-        this.refresh(true, select)
+        this.refresh(true, select);
     }
 
     refresh(setView = false, select = false) {
@@ -272,8 +299,7 @@ class _courses {
         if (course) {
             CourseView.edit_course(course, false, select);
 
-            if (setView)
-                puffin.currentView = this;
+            if (setView) puffin.currentView = this;
             this.open_user_list(select);
             this.open_group_list(false);
             this.open_team_list(false);
@@ -307,7 +333,10 @@ class _courses {
     }
     open_team_list(select = false) {
         const course = Course.current;
-        const team_table = to_table({ _type: 'Team[]', data: course.groups.filter(g => g.kind === 'team') });
+        const team_table = to_table({
+            _type: 'Team[]',
+            data: course.groups.filter((g) => g.kind === 'team'),
+        });
         const team_panel = new BorbPanelBuilder()
             .frame('frame3')
             .panel('borb-sheet', 'course_teams')
@@ -338,15 +367,16 @@ class _courses {
                 name: 'Course',
                 field: 'course',
                 onchange: change_course,
-                output: (e: HTMLSelectElement) => { this._course_selector = e },
+                output: (e: HTMLSelectElement) => {
+                    this._course_selector = e;
+                },
                 default: Course.current?.external_id || 0,
                 alternatives: Course.courses.map((c) => [c.external_id, c.name]),
             }),
         );
     }
     on_course_change(course: Course) {
-        if (this._course_selector)
-            this._course_selector.value = `${course.external_id}`;
+        if (this._course_selector) this._course_selector.value = `${course.external_id}`;
     }
 }
 export const CourseView = new _courses();

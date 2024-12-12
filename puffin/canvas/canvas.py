@@ -45,14 +45,18 @@ class CanvasCourse(CanvasObject):
         ]:
             if k in self.data:
                 result[k] = self.data[k]
+        result['canvas_id'] = result['id']
         if len(self["enrollments"]) > 0 and self["enrollments"][0]["type"] != "teacher":
             return {}
         return result
 
     @staticmethod
-    def get_user_courses(conn: CanvasConnection, userid="self"):
+    def get_user_courses(conn: CanvasConnection, userid="self", enrollment=None):
+        params = {}
+        if enrollment:
+            params = {'enrollment_type':enrollment}
         return [
-            CanvasCourse(conn, c) for c in conn.get_paginated(f"users/{userid}/courses")
+            CanvasCourse(conn, c) for c in conn.get_paginated(f"users/{userid}/courses", params)
         ]
 
     @staticmethod
@@ -68,6 +72,7 @@ class CanvasCourse(CanvasObject):
                 "locale",
                 "effective_locale",
                 "test_student",
+                "login_id"
             ],
             "per_page": "200",
         }
@@ -96,7 +101,7 @@ class CanvasCourse(CanvasObject):
             specific_role = ""
             enrollments = u.get("enrollments", [])
             print("\n")
-            print(u["name"])
+            print(u["name"], u.get('login_id'))
             for e in enrollments:
                 print(" * ", e["enrollment_state"], e["type"], e["role"])
                 if e["type"] == "StudentEnrollment" and role in [""]:

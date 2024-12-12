@@ -95,6 +95,7 @@ class Id(Base):
 
 class Account(Base):
     __tablename__ = 'account'
+    __table_args__ = (UniqueConstraint("provider_name", "external_id"),)
     id: Mapped[int] = mapped_column(
         primary_key=True, autoincrement=False, doc="Internal account id",
         info={'view': {'course_user': False}})
@@ -104,8 +105,7 @@ class Account(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey(
         "user.id"), doc="User this account is associated with",
         info={'view': {'course_user': False}, 'immutable': True})
-    external_id: Mapped[Optional[int]] = mapped_column(unique=True,
-                                                       doc="Provider's numeric user id (if any)")
+    external_id: Mapped[Optional[int]] = mapped_column(doc="Provider's numeric user id (if any)")
     username: Mapped[str] = mapped_column(
         unique=True, doc="Provider's username for this account")
     expiry_date: Mapped[Optional[datetime]] = mapped_column(
@@ -343,13 +343,13 @@ class Assignment(Base):
     course_id: Mapped[int] = mapped_column(ForeignKey('course.id'))
     assignment_model: Mapped[AssignmentModel] = mapped_column(
         info={'form': {'select': 'assignment_model'}})
-    gitlab_id: Mapped[Optional[int]] = \
+    gitlab_path: Mapped[Optional[str]] = \
         mapped_column(info={'form': 'gitlab:project'},
                       doc='GitLab source project (with solution / all tests)')
-    gitlab_root_id: Mapped[Optional[int]] = \
+    gitlab_root_path: Mapped[Optional[str]] = \
         mapped_column(info={'form': 'gitlab:root_project'},
                       doc='GitLab project to be forked to students')
-    gitlab_test_id: Mapped[Optional[int]] = \
+    gitlab_test_path: Mapped[Optional[str]] = \
         mapped_column(info={'form': 'gitlab:test_project'},
                       doc='GitLab project with extra (non-student visible) tests')
     canvas_id: Mapped[Optional[str]] = \
