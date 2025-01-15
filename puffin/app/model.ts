@@ -16,7 +16,15 @@ import {
     Membership_columns,
 } from './model_gen';
 export { tables } from './model_gen';
-import { request, puffin, to_table, gitlab_url, handle_internal_link, user_emails, readable_size } from './puffin';
+import {
+    request,
+    puffin,
+    to_table,
+    gitlab_url,
+    handle_internal_link,
+    user_emails,
+    readable_size,
+} from './puffin';
 import { CourseView } from './courses';
 import { BorbPanelBuilder } from '../borb/Frames';
 import { BorbButton } from '../borb/Buttons';
@@ -35,101 +43,191 @@ export class Group extends _Group {
 
     as_link(link_text: string = undefined) {
         link_text = link_text ? link_text : this.slug;
-        return html`<a data-type="group" data-target=${this.id} onclick=${handle_internal_link} href=${`group://${this.id}`}>${link_text}</a>`;
+        return html`<a
+            data-type="group"
+            data-target=${this.id}
+            onclick=${handle_internal_link}
+            href=${`group://${this.id}`}
+            >${link_text}</a
+        >`;
     }
 
     get users(): User[] {
-        return this.members.map(m => this.course.usersById[m.user_id])
+        return this.members.map((m) => this.course.usersById[m.user_id]);
     }
     get students(): User[] {
-        return this.members.filter(m => m.role === 'student').map(m => this.course.usersById[m.user_id])
+        return this.members
+            .filter((m) => m.role === 'student')
+            .map((m) => this.course.usersById[m.user_id]);
     }
     isMember(u: User | SelfUser) {
-        return this.members.findIndex(m => m.user_id === u.id) != -1;
+        return this.members.findIndex((m) => m.user_id === u.id) != -1;
     }
     isStudent(u: User | SelfUser) {
-        return this.members.findIndex(m => m.role === 'student' && m.user_id === u.id) != -1;
+        return this.members.findIndex((m) => m.role === 'student' && m.user_id === u.id) != -1;
     }
     display(panel: HTMLElement = undefined) {
-        panel = panel ? panel : new BorbPanelBuilder()
-            .frame('frame2')
-            .panel('div', `group_${this.slug}_display`)
-            .title(this.name)
-            .select(true)
-            .done();
+        panel = panel
+            ? panel
+            : new BorbPanelBuilder()
+                  .frame('frame2')
+                  .panel('div', `group_${this.slug}_display`)
+                  .title(this.name)
+                  .select(true)
+                  .done();
         const setPerm = async (ev: Event) => {
             const elt = ev.currentTarget as BorbButton;
             if (elt.name) {
-                console.log("setPerm", elt.checked, elt.dataset.filename)
+                console.log('setPerm', elt.checked, elt.dataset.filename);
                 elt.dataset.status = 'pending';
                 const checked = elt.checked;
-                const data = {}
+                const data = {};
                 data[elt.name] = checked;
-                const result = await request(`courses/${this.course.external_id}/teams/${this.id}/share`, 'PUT', data, false, true);
-                console.log('result', result)
+                const result = await request(
+                    `courses/${this.course.external_id}/teams/${this.id}/share`,
+                    'PUT',
+                    data,
+                    false,
+                    true,
+                );
+                console.log('result', result);
                 if (result.status === 'error') {
                     elt.dataset.status = 'error';
                     show_flash(result, 'error');
                 } else {
                     this.update(result);
-                    console.log('setPerm', this.json_data, this.json_data.share[elt.name], checked)
+                    console.log('setPerm', this.json_data, this.json_data.share[elt.name], checked);
                     if (checked !== this.json_data.share[elt.name])
-                        show_flash(`Failed to update ${elt.name} for ${this.slug}`, 'warning')
+                        show_flash(`Failed to update ${elt.name} for ${this.slug}`, 'warning');
                     else
-                        show_flash(`${checked ? 'Enabled' : 'Disabled'} ${elt.name} for ${this.slug}`)
+                        show_flash(
+                            `${checked ? 'Enabled' : 'Disabled'} ${elt.name} for ${this.slug}`,
+                        );
                     setTimeout(() => {
                         elt.dataset.status = 'ok';
                         redraw();
                     }, 200);
                 }
             }
-        }
+        };
         const redraw = () => {
             const isStudent = this.isStudent(Course.current_user) || Course.current_user.is_admin;
             const isMember = this.isMember(Course.current_user) || Course.current_user.is_admin;
-            const table1 = to_table({ _type: 'Member[]', data: this.members.filter(m => m.role === 'student'), selectable: false });
-            const debug = puffin.debug['console'] ? html`<div><button type="button" onclick=${() => console.log(this)}>Debug</button></div>` : '';
+            const table1 = to_table({
+                _type: 'Member[]',
+                data: this.members.filter((m) => m.role === 'student'),
+                selectable: false,
+            });
+            const debug = puffin.debug['console']
+                ? html`<div
+                      ><button type="button" onclick=${() => console.log(this)}>Debug</button></div
+                  >`
+                : '';
             const children = this.children;
-            const children_table = children.length > 0 ? to_table({ _type: 'Group[]', data: children, selectable: false }) : '';
-            const title = this.json_data.project_path ? html`<a href="${gitlab_url(this.json_data.project_path)}" target="_blank"> ${this.json_data.project_name} – [${this.json_data.project_path}]</a>` : this.json_data.project_name;
+            const children_table =
+                children.length > 0
+                    ? to_table({ _type: 'Group[]', data: children, selectable: false })
+                    : '';
+            const title = this.json_data.project_path
+                ? html`<a href="${gitlab_url(this.json_data.project_path)}" target="_blank">
+                      ${this.json_data.project_name} – [${this.json_data.project_path}]</a
+                  >`
+                : this.json_data.project_name;
             const filesPath = `courses/${this.course.external_id}/teams/${this.id}/files/`;
             const share = this.json_data.share || {};
-            console.log('redraw', this.json_data.share_jar, JSON.stringify(this.json_data))
+            console.log('redraw', this.json_data.share_jar, JSON.stringify(this.json_data));
             const has_members = this.students.length > 0;
             let sharing = [];
             if (this.kind === 'team') {
-                sharing.push(html`<b>Readme:</b> ${(share.readme_file && (isMember || share.share_src || share.share_jar)) ? html`<a href=${filesPath + share.readme_file} target="_blank">${share.readme_file}</a>` : html`<em>(private)</em>`}<br>`)
+                sharing.push(
+                    html`<b>Readme:</b> ${share.readme_file &&
+                        (isMember || share.share_src || share.share_jar)
+                            ? html`<a href=${filesPath + share.readme_file} target="_blank"
+                                  >${share.readme_file}</a
+                              >`
+                            : html`<em>(private)</em>`}<br />`,
+                );
                 if (isStudent) {
-                    sharing.push(html`<b>Share source code:</b> <borb-button type="switch" name="share_src" data-filename=${share.src_file}   onchange=${setPerm} ?disabled=${!isStudent} ?checked=${share.share_src}></borb-button>
-                    ${(share.src_file && (isStudent || share.share_src)) ? html`(<a href=${filesPath + share.src_file} download>${share.src_file}</a>, ${readable_size(share.src_size)})` : ''}<br>`)
-                    sharing.push(html`<b>Share JAR file:</b> <borb-button type="switch" name="share_jar" data-filename=${share.jar_file} onchange=${setPerm} ?disabled=${!isStudent} ?checked=${share.share_jar}></borb-button>
-                    ${(share.jar_file && (isStudent || share.share_jar)) ? html`(<a href=${filesPath + share.jar_file} download>${share.jar_file}</a>, ${readable_size(share.jar_size)})` : ''}<br>`)
+                    sharing.push(html`<b>Share source code:</b>
+                        <borb-button
+                            type="switch"
+                            name="share_src"
+                            data-filename=${share.src_file}
+                            onchange=${setPerm}
+                            ?disabled=${!isStudent}
+                            ?checked=${share.share_src}
+                        ></borb-button>
+                        ${share.src_file && (isStudent || share.share_src)
+                            ? html`(<a href=${filesPath + share.src_file} download
+                                      >${share.src_file}</a
+                                  >, ${readable_size(share.src_size)})`
+                            : ''}<br />`);
+                    sharing.push(html`<b>Share JAR file:</b>
+                        <borb-button
+                            type="switch"
+                            name="share_jar"
+                            data-filename=${share.jar_file}
+                            onchange=${setPerm}
+                            ?disabled=${!isStudent}
+                            ?checked=${share.share_jar}
+                        ></borb-button>
+                        ${share.jar_file && (isStudent || share.share_jar)
+                            ? html`(<a href=${filesPath + share.jar_file} download
+                                      >${share.jar_file}</a
+                                  >, ${readable_size(share.jar_size)})`
+                            : ''}<br />`);
                 } else {
-                    sharing.push(html`<b>Source code:</b> ${(share.src_file && (isMember || share.share_src)) ? html`<a href=${filesPath + share.src_file} download>${share.src_file}</a> (${readable_size(share.src_size)})` : html`<em>(private)</em>`}<br>`)
-                    sharing.push(html`<b>Runnable JAR file:</b> ${(share.jar_file && (isMember || share.share_jar)) ? html`<a href=${filesPath + share.jar_file} download>${share.jar_file}</a> (${readable_size(share.jar_size)})` : html`<em>(private)</em>`}<br>`)
+                    sharing.push(
+                        html`<b>Source code:</b> ${share.src_file && (isMember || share.share_src)
+                                ? html`<a href=${filesPath + share.src_file} download
+                                          >${share.src_file}</a
+                                      >
+                                      (${readable_size(share.src_size)})`
+                                : html`<em>(private)</em>`}<br />`,
+                    );
+                    sharing.push(
+                        html`<b>Runnable JAR file:</b> ${share.jar_file &&
+                            (isMember || share.share_jar)
+                                ? html`<a href=${filesPath + share.jar_file} download
+                                          >${share.jar_file}</a
+                                      >
+                                      (${readable_size(share.jar_size)})`
+                                : html`<em>(private)</em>`}<br />`,
+                    );
                 }
-                (share.screenshots || []).forEach(entry => {
-                    const name = entry[0], size = entry[1];
-                    sharing.push(html`<a href=${filesPath + name} target="_blank"><img src=${filesPath + name} width=300></a> `)
-                })
+                (share.screenshots || []).forEach((entry) => {
+                    const name = entry[0],
+                        size = entry[1];
+                    sharing.push(
+                        html`<a href=${filesPath + name} target="_blank"
+                            ><img src=${filesPath + name} width="300"
+                        /></a> `,
+                    );
+                });
             }
             render(
                 panel,
                 html`
-                ${this.kind === 'team'
-                        ? html`<h2>Team ${this.name} ${this.parent ? html`(${this.parent.as_link()})` : ''}</h2>
-                <b>Project:</b> ${title}<br>`
+                    ${this.kind === 'team'
+                        ? html`<h2
+                                  >Team ${this.name}
+                                  ${this.parent ? html`(${this.parent.as_link()})` : ''}</h2
+                              >
+                              <b>Project:</b> ${title}<br />`
                         : html`<h2>Group/${this.kind} ${this.name}</h2>`}
-                ${sharing}
-                ${has_members ? html`
-                <div><borb-sheet>${table1}</borb-sheet></div>
-                ${this.join_source ? html`<p>(members imported from ${this.join_source})</p>` : ''}
-                <p><b>Emails:</b> ${user_emails(this.students)}</p>
-                <div><borb-sheet>${children_table}</borb-sheet></div>
-                ${debug}` : ''}
+                    ${sharing}
+                    ${has_members
+                        ? html` <div><borb-sheet>${table1}</borb-sheet></div>
+                              ${this.join_source
+                                  ? html`<p>(members imported from ${this.join_source})</p>`
+                                  : ''}
+                              <p><b>Emails:</b> ${user_emails(this.students)}</p>
+                              <div><borb-sheet>${children_table}</borb-sheet></div>
+                              ${debug}`
+                        : ''}
                 `,
             );
-        }
+        };
         redraw();
     }
 
@@ -138,9 +236,13 @@ export class Group extends _Group {
         const share = this.json_data.share || {};
         if (share[`${kind}_file`]) {
             if (share[`share_${kind}`]) {
-                return html.node`<a href=${filesPath + share[`${kind}_file`]} download>${share[`${kind}_file`]}</a> (${readable_size(share[`${kind}_size`])})`;
+                return html.node`<a href=${filesPath + share[`${kind}_file`]} download>${
+                    share[`${kind}_file`]
+                }</a> (${readable_size(share[`${kind}_size`])})`;
             } else if (kind === 'readme') {
-                return html.node`<a href=${filesPath + share[`${kind}_file`]} target="_blank">README.md</a>`;
+                return html.node`<a href=${
+                    filesPath + share[`${kind}_file`]
+                } target="_blank">README.md</a>`;
             }
         }
         return '';
@@ -155,62 +257,67 @@ export class Group extends _Group {
     }
 
     get children() {
-        return this.course.groups.filter(g => g.parent_id === this.id);
+        return this.course.groups.filter((g) => g.parent_id === this.id);
     }
 }
 export const Team_columns = [
     {
-        name: "id",
-        type: "int",
+        name: 'id',
+        type: 'int',
     },
     {
-        name: "parent_id",
-        type: "custom",
-        mapping: (field, obj: Group, spec) => html.node`${obj.parent?.as_link()}`
+        name: 'parent_id',
+        type: 'custom',
+        mapping: (field, obj: Group, spec) => html.node`${obj.parent?.as_link()}`,
     },
     {
-        name: "name",
-        head: "Team name",
-        type: "custom",
-        access: { "write": "member" },
-        mapping: (field, obj:Group, spec) => html.node`${obj.as_link(obj.name)}`
+        name: 'name',
+        head: 'Team name',
+        type: 'custom',
+        access: { write: 'member' },
+        mapping: (field, obj: Group, spec) => html.node`${obj.as_link(obj.name)}`,
     },
     {
-        name: "slug",
-        head: "Short name",
-        type: "group.slug",
-        form: { "slugify": "name" },
+        name: 'slug',
+        head: 'Short name',
+        type: 'group.slug',
+        form: { slugify: 'name' },
     },
     {
-        name: "project",
-        head: "Git project",
-        type: "custom",
-        mapping: (field, obj, spec) => obj.json_data.project_path ? html.node`<a href="${gitlab_url(obj.json_data.project_path)}" target="_blank">${obj.json_data.project_name}</a>` : '',
+        name: 'project',
+        head: 'Git project',
+        type: 'custom',
+        mapping: (field, obj, spec) =>
+            obj.json_data.project_path
+                ? html.node`<a href="${gitlab_url(obj.json_data.project_path)}" target="_blank">${
+                      obj.json_data.project_name
+                  }</a>`
+                : '',
     },
     {
-        name: "share_readme",
-        head: "Project README",
-        type: "custom",
-        mapping: (field, obj:Group, spec) => obj.get_file_link('readme')
+        name: 'share_readme',
+        head: 'Project README',
+        type: 'custom',
+        mapping: (field, obj: Group, spec) => obj.get_file_link('readme'),
     },
     {
-        name: "share_jar",
-        head: "Runnable JAR",
-        type: "custom",
-        mapping: (field, obj:Group, spec) => obj.get_file_link('jar')
+        name: 'share_jar',
+        head: 'Runnable JAR',
+        type: 'custom',
+        mapping: (field, obj: Group, spec) => obj.get_file_link('jar'),
     },
     {
-        name: "share_src",
-        head: "Source code",
-        type: "custom",
-        mapping: (field, obj:Group, spec) => obj.get_file_link('src')
-    }
+        name: 'share_src',
+        head: 'Source code',
+        type: 'custom',
+        mapping: (field, obj: Group, spec) => obj.get_file_link('src'),
+    },
     /*    {
             name: "json_data",
             type: "dict",
         },*/
-]
-tables["Team"] = Team_columns;
+];
+tables['Team'] = Team_columns;
 
 export class Project extends _Project {
     full_path(): string {
@@ -235,7 +342,7 @@ export class Assignment extends _Assignment {
     gitlab_test_project: Project;
     _gitlab_test_project: Project;
 
-    constructor(jsonData: Record<string, any> | _Assignment, course:Course, revision?: number) {
+    constructor(jsonData: Record<string, any> | _Assignment, course: Course, revision?: number) {
         super(jsonData, revision);
         this.course = course;
     }
@@ -249,12 +356,18 @@ export class Assignment extends _Assignment {
 
     as_link(link_text: string = undefined) {
         link_text = link_text ? link_text : this.slug;
-        return html`<a data-type="assignment" data-target=${this.id} onclick=${handle_internal_link} href=${`assignment://${this.id}`}>${link_text}</a>`;
+        return html`<a
+            data-type="assignment"
+            data-target=${this.id}
+            onclick=${handle_internal_link}
+            href=${`assignment://${this.id}`}
+            >${link_text}</a
+        >`;
     }
     has_valid_gitlab_path() {
         console.log(this);
-        if (!this._gitlab_path) this._gitlab_path =  this.json_data['gitlab_path'];
-        return this.json_data['gitlab_path'] &&  this.json_data['gitlab_path'] === this._gitlab_path;
+        if (!this._gitlab_path) this._gitlab_path = this.json_data['gitlab_path'];
+        return this.json_data['gitlab_path'] && this.json_data['gitlab_path'] === this._gitlab_path;
     }
     has_valid_gitlab_test_path() {
         console.log(this);
@@ -300,23 +413,30 @@ export class User extends _FullUser {
     groups: Group[];
     memberships: Map<number, Member> = new Map();
 
-    findGroups({ kind, role }: { kind: string, role: string }) {
+    findGroups({ kind, role }: { kind: string; role: string }) {
         let result = this.groups;
-        if (kind !== undefined)
-            result = result.filter(g => g.kind === kind)
+        if (kind !== undefined) result = result.filter((g) => g.kind === kind);
         if (role !== undefined)
-            result = result.filter(g => this.memberships.get(g.id).role === role)
+            result = result.filter((g) => this.memberships.get(g.id).role === role);
         return result;
     }
     get team() {
-        return this.groups.filter(g => g.kind === 'team' && this.memberships.get(g.id).role === this.role)
+        return this.groups.filter(
+            (g) => g.kind === 'team' && this.memberships.get(g.id).role === this.role,
+        );
     }
     get section() {
-        return this.groups.filter(g => g.kind === 'section')
+        return this.groups.filter((g) => g.kind === 'section');
     }
     as_link(link_text: string = undefined) {
         link_text = link_text ? link_text : `${this.firstname} ${this.lastname}`;
-        return html`<a data-type="user" data-target=${this.id} onclick=${handle_internal_link} href=${`user://${this.id}`}>${link_text}</a>`;
+        return html`<a
+            data-type="user"
+            data-target=${this.id}
+            onclick=${handle_internal_link}
+            href=${`user://${this.id}`}
+            >${link_text}</a
+        >`;
     }
     get is_privileged() {
         return PRIVILEGED_ROLES.indexOf(this.role) != -1;
@@ -353,7 +473,7 @@ export const Member_columns = [
     {
         name: 'role',
         type: 'str',
-        icons: Membership_columns.find(c => c.name === 'role').icons,
+        icons: Membership_columns.find((c) => c.name === 'role').icons,
     },
     {
         name: 'lastname',
@@ -384,7 +504,7 @@ export class Course extends _Course {
     public groupsById: Group[] = [];
     public groupsBySlug: Map<string, Group> = new Map();
     public assignments: Assignment[] = [];
-    public assignmentsBySlug: Map<string, Assignment> = new Map();;
+    public assignmentsBySlug: Map<string, Assignment> = new Map();
     public assignmentsById: Assignment[] = [];
 
     has_valid_gitlab_path() {
@@ -412,7 +532,7 @@ export class Course extends _Course {
         });
         return diff;
     }
-    static async updateCourses(): Promise<Course[]> {
+    static async updateCourses(update_ui = true): Promise<Course[]> {
         const courses = (await request('courses/')) as _Course[];
         const activeCourses: Set<number> = new Set();
         courses.forEach((c) => {
@@ -428,7 +548,7 @@ export class Course extends _Course {
         removed.forEach((c) => {
             console.warn('Removed course: ', c);
         });
-        CourseView.update_course_list();
+        if (update_ui) CourseView.update_course_list();
         return [...Course.courses];
     }
     static async setActiveCourse(course_id: number, update = true): Promise<Course> {
@@ -446,6 +566,7 @@ export class Course extends _Course {
         Course.current_user.course_user = this.currentUser();
         Course.current_user?.on_update();
         CourseView.update_course_list();
+        localStorage.setItem('active-course', `${this.external_id}`);
         //CourseView.refresh(true, false);
 
         return Promise.resolve(Course.current);
@@ -507,7 +628,7 @@ export class Course extends _Course {
                 firstname: u?.firstname,
                 role: m.role,
                 join_model: m.join_model,
-            }
+            };
             g.members.push(m2);
             u?.groups.push(g);
             u?.memberships.set(m.group_id, m2);
@@ -528,17 +649,27 @@ export class Course extends _Course {
         return this.assignments;
     }
     clone_team_projects() {
-        return this.groups.filter(g => g.kind === 'team').map(t => `[ ! -f ${t.slug} ] && git clone git@git.app.uib.no:${t.json_data.project_path} ${t.slug} && sleep 2`);
+        return this.groups
+            .filter((g) => g.kind === 'team')
+            .map(
+                (t) =>
+                    `[ ! -f ${t.slug} ] && git clone git@git.app.uib.no:${t.json_data.project_path} ${t.slug} && sleep 2`,
+            );
     }
     as_link(link_text: string = undefined) {
         link_text = link_text ? link_text : `${this.slug}`;
-        return html`<a data-type="course" data-target=${this.id} onclick=${handle_internal_link} href=${`group://${this.id}`}>${link_text}</a>`;
+        return html`<a
+            data-type="course"
+            data-target=${this.id}
+            onclick=${handle_internal_link}
+            href=${`group://${this.id}`}
+            >${link_text}</a
+        >`;
     }
 }
 
-
 export class GitlabProject extends Project {
-    [key: string] : any
+    [key: string]: any;
 
     constructor(jsonData: Record<string, any>, revision?: number) {
         super(jsonData, revision);

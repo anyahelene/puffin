@@ -220,16 +220,21 @@ async function initialize() {
                 `,
         );
     };
-    await Course.updateCourses();
+    await Course.updateCourses(false);
     try {
         const usp = new URLSearchParams(window.location.search);
+        let course : Course|undefined;
         if (usp.has('course')) {
-            await Course.setActiveCourse(parseInt(usp.get('course')))
+            course = Course.courses[parseInt(usp.get('course'))];
+        } else {
+            course = Course.courses[parseInt(localStorage.getItem('active-course'))];
         }
-        let course = Course.courses[48837] || Course.courses.filter(() => true)[0];
+        if(!course)
+            course =  Course.courses.filter(() => true).pop();
         if (course) {
             await course.setActive();
         } else {
+            CourseView.update_course_list();
             show_flash('No courses found!');
         }
     } catch (e) {

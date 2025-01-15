@@ -12,6 +12,7 @@ import { BorbPanelBuilder } from '../borb/Frames';
 import { html, render } from 'uhtml';
 import slugify from 'slugify';
 import { form_field, form_select, GITLAB_PATH_RE, GITLAB_PREFIX } from './forms';
+import { update } from 'puffin/borb/Styles';
 
 class _courses {
     _course_selector: HTMLSelectElement;
@@ -266,6 +267,7 @@ class _courses {
     async add_course(canvas_courses?: Record<string, any>[], canvas_id?: number) {
         if(!canvas_courses) {
             const panel = this.get_course_panel(null);
+            render(panel, html`Loading course list from Canvas...`)
             canvas_courses = await request('courses/canvas');
             const now = new Date();
             canvas_courses.forEach((course) => {
@@ -348,9 +350,12 @@ class _courses {
 
     update_course_list() {
         const elt = document.getElementById('course-info');
-        const obj = { course: Course.current?.name };
+        const obj = { course: Course.current?.external_id || 0 };
         const change_course = async (ev: MouseEvent, elt: HTMLSelectElement) => {
-            if (elt.value) {
+            if(elt.value === 'new') {
+                CourseView.add_course();
+                this.update_course_list()
+            } else if (elt.value) {
                 const course = Course.courses[parseInt(elt.value)];
                 if (course) {
                     await course.setActive(true);
@@ -358,7 +363,8 @@ class _courses {
                 }
             }
         };
-
+        const alternatives = Course.courses.map((c) => [c.external_id, c.name])
+        alternatives.push(['new', 'Add New...'])
         render(
             elt,
             form_select({
@@ -370,8 +376,8 @@ class _courses {
                 output: (e: HTMLSelectElement) => {
                     this._course_selector = e;
                 },
-                default: Course.current?.external_id || 0,
-                alternatives: Course.courses.map((c) => [c.external_id, c.name]),
+                value: Course.current?.external_id || 0,
+                alternatives,
             }),
         );
     }

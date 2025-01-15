@@ -1,0 +1,2 @@
+alembic revision --autogenerate -m add json_data to Group
+alembic upgrade head

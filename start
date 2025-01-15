@@ -1,0 +1,2 @@
+xfce4-terminal -H --drop-down -T Puffin --window --working-directory=$PWD -T Webpack -e "sh -c \"./start_webpack; bash -i\"" --tab -T Flask -e "sh -c \"./start_flask; bash -i\""
+
