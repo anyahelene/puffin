@@ -1,0 +1,3 @@
+[ -z "$VIRTUAL_ENV" ] && . .venv/bin/activate
+
+exec flask -A puffin/app/app.py shell
