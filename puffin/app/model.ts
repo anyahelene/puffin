@@ -648,6 +648,14 @@ export class Course extends _Course {
         this.assignmentsById = to_arraymap(this.assignments);
         return this.assignments;
     }
+
+    get term() : string {
+        return this.slug.split('-', 2)[1];
+    }
+    get code() : string {
+        return this.slug.split('-', 2)[0];
+    }
+    
     clone_team_projects() {
         return this.groups
             .filter((g) => g.kind === 'team')

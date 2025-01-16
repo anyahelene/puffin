@@ -13,6 +13,7 @@ import { html, render } from 'uhtml';
 import slugify from 'slugify';
 import { form_field, form_select, GITLAB_PATH_RE, GITLAB_PREFIX } from './forms';
 import { update } from 'puffin/borb/Styles';
+import { placeholder } from '@codemirror/view';
 
 class _courses {
     _course_selector: HTMLSelectElement;
@@ -125,16 +126,19 @@ class _courses {
             () => redraw(),
             course,
         );
-        const check_gitlab = (data: any) => {
+        type gitlab_getter = (course: Course | number, ref: string) => Promise<Record<string, any>>;
+        const check_gitlab = (f: gitlab_getter) => (data: any, value?: any) => {
             return busy_event_handler(
                 async (ev: MouseEvent) => {
-                    if (data.ref?.current?.value) {
-                        const g = await get_gitlab_group(undefined, data.ref.current.value);
+                    if (data.ref?.current?.value || value) {
+                        const g = await f(undefined, data.ref?.current?.value || value);
                         if (g) {
                             data.ref.current.value =
                                 course[data.field] =
                                 course.json_data[data.field.replace(/^_/, '')] =
                                     g.full_path;
+                        } else {
+                            console.warn('not found', g);
                         }
                     }
                 },
@@ -143,6 +147,8 @@ class _courses {
                 [data.ref],
             );
         };
+        const check_gitlab_group = check_gitlab(get_gitlab_group);
+        const check_gitlab_project = check_gitlab(get_gitlab_project);
         const sync_all = (ev: MouseEvent) => {
             const target = ev.target as HTMLButtonElement;
             const feedback = (s: string) => {
@@ -190,23 +196,37 @@ class _courses {
                         editable,
                         obj: course,
                         pattern: `^${GITLAB_PATH_RE}(/${GITLAB_PATH_RE})*$`,
-                        name: 'Gitlab path',
+                        name: 'Gitlab group',
                         field: '_gitlab_path',
+                        recommended: '$COURSE_CODE/$COURSE_TERM',
                         link_prefix: course.has_valid_gitlab_path() ? GITLAB_PREFIX : undefined,
-                        button_make_onclick: check_gitlab,
+                        button_make_onclick: check_gitlab_group,
                         button_class: course.has_valid_gitlab_path() ? 'check-ok' : 'check-unknown',
-                        button_title: editable ? 'Check' : undefined,
+                        button_title: editable ? 'Check' : 'Check default',
                     })}
                     ${form_field({
                         editable,
                         obj: course,
                         pattern: `^${GITLAB_PATH_RE}(/${GITLAB_PATH_RE})*$`,
-                        name: 'Gitlab student path',
+                        name: 'Gitlab wiki',
+                        field: '_gitlab_wiki',
+                        recommended: '$GITLAB_GROUP/' + course.slug,
+                        link_prefix: course.has_valid_gitlab_path() ? GITLAB_PREFIX : undefined,
+                        button_make_onclick: check_gitlab_project,
+                        button_class: course.has_valid_gitlab_path() ? 'check-ok' : 'check-unknown',
+                        button_title: editable ? 'Check' : 'Check default',
+                    })}
+                    ${form_field({
+                        editable,
+                        obj: course,
+                        pattern: `^${GITLAB_PATH_RE}(/${GITLAB_PATH_RE})*$`,
+                        name: 'Fork assignments to',
                         field: '_gitlab_student_path',
+                        recommended: '$GITLAB_GROUP/$ASGN_SHORTNAME/$GITLAB_USERNAME\\_$ASGN_SLUG',
                         link_prefix: course.has_valid_gitlab_student_path()
                             ? GITLAB_PREFIX
                             : undefined,
-                        button_make_onclick: check_gitlab,
+                        button_make_onclick: check_gitlab_group,
                         button_class: course.has_valid_gitlab_student_path()
                             ? 'check-ok'
                             : 'check-unknown',
@@ -239,9 +259,7 @@ class _courses {
                             >Users as CSV</a
                         ></div
                     >
-                        <div>
-                        ${to_table({_type:'Assignment[]', data:course.assignments})}
-                        </div>
+                    <div> ${to_table({ _type: 'Assignment[]', data: course.assignments })} </div>
                     <div class="log">
                         ${course._log.map(
                             (entry) => html`<li class=${entry[0]}>${entry[1]}</li>`,
@@ -265,30 +283,65 @@ class _courses {
     }
 
     async add_course(canvas_courses?: Record<string, any>[], canvas_id?: number) {
-        if(!canvas_courses) {
+        if (!canvas_courses) {
             const panel = this.get_course_panel(null);
-            render(panel, html`Loading course list from Canvas...`)
+            // render(panel, html`Loading course list from Canvas...`);
             canvas_courses = await request('courses/canvas');
             const now = new Date();
             canvas_courses.forEach((course) => {
                 course.start_at = new Date(course.start_at);
                 course.end_at = new Date(course.end_at);
                 if (course.end_at < now) course.workflow_state = 'finished';
+                console.log(course.canvas_id, typeof course.canvas_id);
             });
             canvas_courses.sort((a, b) => b.start_at - a.start_at);
-            panel.replaceChildren(...to_table(canvas_courses));
+            render(
+                panel,
+                html`<table>
+                    <thead>
+                        <tr
+                            ><th>Term</th><th>Slug</th><th>Name</th><th>Canvas Id</th><th>State</th
+                            ><th></th
+                        ></tr>
+                    </thead>
+                    <tbody>
+                        ${canvas_courses.map(
+                            (course) => html`<tr
+                                data-id=${course.canvas_id}
+                                class=${course.workflow_state == 'finished' ? 'disabled' : ''}
+                            >
+                                <td>${course.term}</td>
+                                <td>${course.slug}</td>
+                                <td>${course.name}</td>
+                                <td>${course.canvas_id}</td>
+                                <td>${course.workflow_state}</td>
+                                <td
+                                    ><button
+                                        type="button"
+                                        onclick=${() =>
+                                            this.add_course(canvas_courses, course.canvas_id)}
+                                        >Add course</button
+                                    ></td
+                                >
+                            </tr>`,
+                        )}
+                    </tbody>
+                </table>`,
+            );
         }
         if (canvas_id) {
-            const course = canvas_courses.find(course => course.id === canvas_id);
+            const course = canvas_courses.find((course) => course.id === canvas_id);
             console.log('add_course payload:', course);
-            if(course) {
-                const result = await request('courses/','POST', course)
+            if (course) {
+                const result = await request('courses/', 'POST', course);
                 console.log('add_course result:', result);
                 await Course.updateCourses();
+                await Course.setActiveCourse(canvas_id);
+                CourseView.set_course_view(true);
             } else {
                 // ERROR
             }
-        } 
+        }
         return canvas_courses;
     }
 
@@ -352,9 +405,9 @@ class _courses {
         const elt = document.getElementById('course-info');
         const obj = { course: Course.current?.external_id || 0 };
         const change_course = async (ev: MouseEvent, elt: HTMLSelectElement) => {
-            if(elt.value === 'new') {
+            if (elt.value === 'new') {
                 CourseView.add_course();
-                this.update_course_list()
+                this.update_course_list();
             } else if (elt.value) {
                 const course = Course.courses[parseInt(elt.value)];
                 if (course) {
@@ -363,8 +416,8 @@ class _courses {
                 }
             }
         };
-        const alternatives = Course.courses.map((c) => [c.external_id, c.name])
-        alternatives.push(['new', 'Add New...'])
+        const alternatives = Course.courses.map((c) => [c.external_id, c.name]);
+        alternatives.push(['new', 'Add New...']);
         render(
             elt,
             form_select({

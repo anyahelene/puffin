@@ -31,12 +31,14 @@ export function form_field(data: Record<string, any>) {
               <button
                   type="button"
                   class=${data.button_class}
-                  onclick=${data.button_make_onclick(data)}
+                  onclick=${data.button_make_onclick(data, data.recommended)}
                   >${data.button_title}</button
               >${button2 || ''}</span
           >`
         : '';
     const label = data.label === false ? '' : html`<label for=${data.id}>${data.name}:</label>`;
+    console.log('FORM', data, data.placeholder
+    )
     if (data.editable)
         return html`<div class="form-field">
             ${label}
@@ -46,10 +48,11 @@ export function form_field(data: Record<string, any>) {
                 ref=${data.ref}
                 name=${data.field}
                 required=${data.required}
+                data-recommended=${data.recommended || ''}
                 placeholder=${data.placeholder || ''}
                 pattern=${data.pattern}
                 onchange=${changeHandler}
-                value=${data.value || ''}
+                value=${data.value || data.recommended || ''}
                 ?disabled=${data.disabled}
                 size=${data.size}
             />
@@ -58,7 +61,7 @@ export function form_field(data: Record<string, any>) {
     else if (data.link && data.value)
         return html`<div class="form-field">
             ${label}
-            <span class="field" id=${data.id}
+            <span class="field" ref=${data.ref} id=${data.id}
                 ><a href=${data.link} target="_blank">${data.value || '\u202f'}</a></span
             >
             ${button}
@@ -66,7 +69,7 @@ export function form_field(data: Record<string, any>) {
     else
         return html`<div class="form-field">
             ${label}
-            <span class="field" id=${data.id}>${data.value || '\u202f'}</span>
+            <span class="field" ref=${data.ref} id=${data.id}>${data.value || data.recommended || '\u202f'}</span>
             ${button}
         </div> `;
 }

@@ -379,7 +379,11 @@ borb-frame>* {
     }
 }
 
-borb-sheet {
+borb-sheet, table {
+    border-collapse: collapse;
+    .disabled {
+        color: #888;
+    }
     tr {
         vertical-align: middle;
         border-bottom: 1px dotted #8888;
@@ -393,7 +397,7 @@ borb-sheet {
         position: sticky;
         top: 0;
         z-index: 100;
-        background: #eed;
+        background: #eee;
     }
 
     tbody tr:nth-child(even) {

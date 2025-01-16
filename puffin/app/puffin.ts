@@ -1,4 +1,4 @@
-import { html } from 'uhtml';
+import { Hole, html } from 'uhtml';
 import { BorbPanelBuilder } from '../borb/Frames';
 import { show_flash } from './flashes';
 import { Course, Group, Project, User, tables, GitlabProject, Assignment } from './model';
@@ -6,6 +6,7 @@ export let csrf_token: string = undefined;
 
 export const puffin: Record<string, object> = {
     debug: { console: false },
+    instantiate,
 };
 
 export function modify_table(
@@ -14,17 +15,18 @@ export function modify_table(
     f: (entry: ColumnSpec) => void,
 ) {
     entry_names = Array.isArray(entry_names) ? entry_names : [entry_names];
-    
+
     const _table = Array.isArray(table) ? table : (tables[table] as ColumnSpec[]);
-    const patch =  (entry_name:string) => _table.find((entry) => {
-        if (entry.name === entry_name) {
-            f(entry);
-            return true;
-        } else {
-            return false;
-        }
-    });
-    entry_names.forEach(entry_name => patch(entry_name));
+    const patch = (entry_name: string) =>
+        _table.find((entry) => {
+            if (entry.name === entry_name) {
+                f(entry);
+                return true;
+            } else {
+                return false;
+            }
+        });
+    entry_names.forEach((entry_name) => patch(entry_name));
 }
 export function add_to_table(table: string | ColumnSpec[], entry_name: string, entry: ColumnSpec) {
     const _table = Array.isArray(table) ? table : (tables[table] as ColumnSpec[]);
@@ -38,17 +40,11 @@ tables['FullUser'].push({ name: 'team', type: 'group[]', filter: '' });
 tables['FullUser'].push({ name: 'section', type: 'group[]', filter: '' });
 //tables['FullUser'].push({ name: 'groups', type: 'group[]', filter: '' });
 modify_table('FullUser', ['firstname', 'lastname'], (entry) => {
-    entry.mapping = (field, obj, spec) =>
-        field
-            ? html.node`${obj.as_link(field)}`
-            : '';
+    entry.mapping = (field, obj, spec) => (field ? html.node`${obj.as_link(field)}` : '');
     entry.type = 'custom';
 });
 modify_table('Assignment', ['name', 'slug'], (entry) => {
-    entry.mapping = (field, obj, spec) =>
-        field
-            ? html.node`${obj.as_link(field)}`
-            : '';
+    entry.mapping = (field, obj, spec) => (field ? html.node`${obj.as_link(field)}` : '');
     entry.type = 'custom';
 });
 modify_table('FullUser', 'canvas_username', (entry) => {
@@ -171,7 +167,7 @@ export async function request(
 
     log_request(res, JSON.stringify(result, null, 2));
     if (result.status === 'error') {
-        if (has_token && result.data.search(/The CSRF token has expired/) !== -1) {
+        if (has_token && result.data && result.data.search(/The CSRF token has expired/) !== -1) {
             console.warn('Resetting CSRF token');
             csrf_token = undefined;
             return request(endPoint, method, params);
@@ -585,4 +581,35 @@ export function readable_size(n: number) {
     if (n < 1024) return `${n} bytes`;
     else if (n < 1024 * 1024) return `${Math.round(n / 1024)} KiB`;
     else if (n < 1024 * 1024 * 1024) return `${Math.round(n / 1024 / 1024)} MiB`;
+}
+
+export function instantiate(pattern: string, objects: { course: Course; asgn: Assignment }) {
+    const re = new RegExp(/\$([A-Z]+)(?:_([A-Z_]+))?|(\\_)|([^$]+)/, 'y');
+
+    let result : (string|Hole)[] = [];
+    let mo = re.exec(pattern);
+    console.log(re, mo);
+    while (mo) {
+        console.log(re, mo);
+        if (mo[1]) {
+            let obj = objects[mo[1].toLowerCase()];
+            if(obj && mo[2]) {
+                console.log('obj:', obj);
+                obj = obj[mo[2].toLowerCase()];
+            }
+            if(obj !== undefined)
+                result.push(`${obj}`);
+            else if(mo[2] !== undefined)
+                result.push(`$${mo[1]}_${mo[2]}`)
+            else
+            result.push(`$${mo[1]}`)
+        } else if (mo[3]) {
+            result.push('_')
+        } else if (mo[4]) {
+            result.push(mo[4]);
+        }
+        mo = re.exec(pattern);
+    }
+    console.log(result);
+    return result;
 }

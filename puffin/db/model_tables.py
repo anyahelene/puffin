@@ -157,6 +157,7 @@ class Course(Base):
         'access': {'read': 'member', 'write': 'admin', 'sync': ['teacher']},
         'data': {
             'gitlab_path': 'gitlab:path',
+            'gitlab_wiki': 'gitlab:path',
             'gitlab_student_path': 'gitlab:path',
             'course_code': 'str',
             'locale': 'locale',
