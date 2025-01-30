@@ -206,7 +206,14 @@ const config = {
                 exclude: /node_modules/,
                 use: [
                     // turns SCSS code into CSS
-                    'sass-loader',
+                    {
+                        loader: 'sass-loader',
+                        options: {
+                            sassOptions: {
+                                silenceDeprecations:["import", "legacy-js-api", "color-functions"]
+                            }
+                        },
+                    }
                 ],
             },
             {
