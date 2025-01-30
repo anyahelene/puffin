@@ -55,7 +55,7 @@ def login():
             u = db_session.execute(select(User).where(User.email==username)).scalar_one_or_none()
 
             _logger.info('/login/login[%s]: Found user: %s', g.log_ref, u)
-            if u and u.password and check_password_hash(u.password, password):
+            if u and u.password and password and check_password_hash(u.password, password):
                 if not u.is_expired:
                     _logger.info('/login/login[%s]: Logged in successfully, redirecting to %s', g.log_ref, url_for('app.index_html'))
                     #session.clear()

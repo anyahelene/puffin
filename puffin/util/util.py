@@ -19,7 +19,7 @@ def intify(data : str|int) -> str|int:
 def now() -> datetime:
     return datetime.now(timezone.utc)
 
-def decode_date(s:str) -> datetime|None:
+def decode_date(s:str|None) -> datetime|None:
     try:
         if not s:
             return None

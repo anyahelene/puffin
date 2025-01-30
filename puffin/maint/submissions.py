@@ -79,12 +79,12 @@ class Submission:
 
     def __init__(self):
         self.refresh()
-        self.user = None
-        self.enrollment = None
+        self.user = None # type: ignore
+        self.enrollment = None # type: ignore
         self.project = None
-        self.gitlab = None
-        self.canvas = None
-        self.last_activity = None
+        self.gitlab = None # type: ignore
+        self.canvas = None # type: ignore
+        self.last_activity = None # type: ignore
         self.worked = False
         self.submission = None
 
@@ -115,7 +115,7 @@ class Submission:
 
     @property
     def pipeline_status(self) -> str|None:
-        if self.__pipeline_status__ == None:
+        if self.__pipeline_status__ == None and self.pipelines:
             try:
                 self.__pipeline_status__ = self.pipelines.get('latest').status
             except:

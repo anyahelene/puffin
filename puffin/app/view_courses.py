@@ -213,7 +213,7 @@ def course(course_spec):
 class EditCourseForm(FlaskForm):
     name = StringField("Course name", [validators.regexp(VALID_DISPLAY_NAME_REGEX)])
     slug = StringField("Slug", [validators.regexp(VALID_SLUG_REGEX)])
-    canvas_id = IntegerField("Canvas id")
+    canvas_id = IntegerField("Canvas id", [validators.data_required()])
     gitlab_path = StringField(
         "Gitlab path", [validators.regexp(VALID_SLUG_PATH_OR_EMPTY_REGEX)]
     )
@@ -244,17 +244,17 @@ def new_course(course_spec=None):
             raise ErrorResponse("Bad request", status_code=400)
         if current_user.is_admin:
             course_spec = form.canvas_id.data  # TODO
-            changes = changes + _create_course(form.canvas_id.data)
+            changes = changes + _create_course(form.canvas_id.data) # type: ignore
             course = get_course(course_spec)
 
     if course:
         en = current_user.enrollment(course)
         if current_user.is_admin or (en and en.role in ["admin", "ta", "teacher"]):
-            if form.name.validate(form):
+            if form.name.validate(form) and form.name.data:
                 course.name = form.name.data
-            if form.slug.validate(form):
+            if form.slug.validate(form) and form.slug.data:
                 course.slug = form.slug.data
-            elif form.name.validate(form):
+            elif form.name.validate(form) and form.name.data:
                 course.slug = slugify(form.name.data)
             d = decode_date(form.expiry_date.data)
             if d:
@@ -642,7 +642,7 @@ def create_course_team(course_spec, group_id=None):
 
     form = CreateTeamForm()
 
-    if not form.slug.data:
+    if not form.slug.data and form.name.data:
         form.slug.data = slugify(form.name.data)
     print(
         f'Received form: {"invalid" if not form.validate() else "valid"} {form.form_errors} {form.errors}'
@@ -1139,7 +1139,7 @@ def create_course_group(course_spec, group_id=None):
                 "join_model": form.join_model.data,
             }
         )
-        if not form.slug.data:
+        if not form.slug.data and form.name.data:
             form.slug.data = slugify(form.name.data)
         print(
             f'Received form: {"invalid" if not form.validate() else "valid"} {form.form_errors} {form.errors}'
