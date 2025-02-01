@@ -8,3 +8,6 @@ puffin/borb
 secrets
 .venv
 prod-dist
+.vscode
+downloads
+tmp

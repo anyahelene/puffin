@@ -18,18 +18,32 @@ const config = {
     context: path.resolve(__dirname, 'puffin'),
     plugins: [
         new MiniCssExtractPlugin({ filename: '[name].css' }),
-        new FaviconsWebpackPlugin('../static/img/puffin_red.svg'),
+        new FaviconsWebpackPlugin({
+            logo: '../static/img/puffin_red.svg',
+            favicons: {
+                icons: {
+                    android: false, // Create Android homescreen icon. `boolean` or `{ offset, background }` or an array of sources
+                    appleIcon: false, // Create Apple touch icons. `boolean` or `{ offset, background }` or an array of sources
+                    appleStartup: false, // Create Apple startup images. `boolean` or `{ offset, background }` or an array of sources
+                    favicons: true, // Create regular favicons. `boolean` or `{ offset, background }` or an array of sources
+                    windows: false, // Create Windows 8 tile icons. `boolean` or `{ offset, background }` or an array of sources
+                    yandex: false,
+                },
+            },
+        }),
         new HtmlWebpackPlugin({
             filename: 'templates/index.html',
             template: '../templates/page.html',
             publicPath: '',
-            minify: false
+            inject: false,
+            minify: false,
         }),
         new HtmlWebpackPlugin({
             filename: 'templates/login.html',
             template: '../templates/login.html',
             publicPath: '..',
-            minify: false
+            inject: false,
+            minify: false,
         }),
     ],
     stats: {
@@ -151,7 +165,7 @@ const config = {
                     },
                 ],
             },
-            {
+/*            {
                 test: /\.css$/,
                 type: 'asset/resource',
                 generator: {
@@ -166,7 +180,7 @@ const config = {
                     // turns CSS code into JS (to be inserted at import site),
                     'css-loader',
                 ],
-            },
+            },*/
             {
                 test: /\.txt$/,
                 type: 'asset/source',
@@ -209,11 +223,13 @@ const config = {
                     {
                         loader: 'sass-loader',
                         options: {
+                            sourceMap: true,
+                            api: "modern",
                             sassOptions: {
-                                silenceDeprecations:["import", "legacy-js-api", "color-functions"]
-                            }
+                                silenceDeprecations: ['import', 'legacy-js-api', 'color-functions'],
+                            },
                         },
-                    }
+                    },
                 ],
             },
             {
@@ -230,13 +246,13 @@ const config = {
 
 export default function init(env, argv) {
     config.mode = argv.mode || 'development';
-    console.log("MODE: ", config.mode);
-    if(config.mode === 'development') {
-        config.devtool = 'source-map'
-    } else if(config.mode === 'production') {
-        config.output.path = path.resolve(__dirname, 'prod-dist', 'webroot')
+    console.log('MODE: ', config.mode);
+    if (config.mode === 'development') {
         config.devtool = 'source-map';
-        //config.optimization.minimize = false;
+    } else if (config.mode === 'production') {
+        config.output.path = path.resolve(__dirname, 'prod-dist', 'webroot');
+        config.devtool = 'source-map';
+        config.optimization.minimize = false;
         config.devServer = undefined;
     }
     return config;

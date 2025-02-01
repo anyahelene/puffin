@@ -8,7 +8,8 @@
     </title>
     <link rel="stylesheet" href="{{ static('style.css') }}" />
     <link rel="stylesheet" href="{{ static('sheet.css') }}" />
-    <link rel="icon" href="{{ static('puffin_red.svg') }}" />
+    <%= htmlWebpackPlugin.tags.headTags %>
+    <link rel="icon" type="image/svg+xml" sizes="any" href="{{ static('puffin_red.svg') }}" />
 </head>
 
 
