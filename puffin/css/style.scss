@@ -1,5 +1,5 @@
 @use "sass:color";
-@use "fonts.scss";
+@import "./fonts.scss";
 
 * {
     box-sizing: border-box;
@@ -247,7 +247,9 @@ a.button {
     flex-shrink: 3;
     font-family: monospace;
 
-    padding: .5rem h1 {
+    padding: .5rem;
+    
+    h1 {
         font-size: large;
         margin: 0 0 .5rem;
     }
@@ -672,7 +674,7 @@ header {
         padding: 0;
         position: relative;
         min-width: 30em;
-        max-height: auto;
+        max-height: fit-content; /* TODO: needed? */
         width: auto;
 
 

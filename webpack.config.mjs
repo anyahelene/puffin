@@ -6,20 +6,31 @@ import * as marked from 'marked';
 import webpack from 'webpack';
 import HtmlWebpackPlugin from 'html-webpack-plugin';
 import FaviconsWebpackPlugin from 'favicons-webpack-plugin';
+import CopyPlugin from 'copy-webpack-plugin';
 import MiniCssExtractPlugin from 'mini-css-extract-plugin';
 //import HotModuleReplacementPlugin from 'webpack/lib/HotModuleReplacementPlugin';
 const renderer = new marked.Renderer();
 const hmrp = new webpack.HotModuleReplacementPlugin();
 const isDevServer = process.env.WEBPACK_SERVE;
 
+const copyPlugin = new CopyPlugin({
+    patterns: [
+        { context: '../static', from: '*', to: './' },
+        { context: '../static', from: '*/**/*', to: 'static/' },
+        { context: '../staticfoo', from: '*/**/*', to: 'static/', noErrorOnMissing: true },
+    ],
+});
+
 const config = {
     mode: 'development',
     target: 'web',
     context: path.resolve(__dirname, 'puffin'),
+    experiments: { css: true },
     plugins: [
         new MiniCssExtractPlugin({ filename: '[name].css' }),
         new FaviconsWebpackPlugin({
             logo: '../static/img/puffin_red.svg',
+            outputPath: 'static/img',
             favicons: {
                 icons: {
                     android: false, // Create Android homescreen icon. `boolean` or `{ offset, background }` or an array of sources
@@ -45,28 +56,26 @@ const config = {
             inject: false,
             minify: false,
         }),
+        copyPlugin,
     ],
     stats: {
         loggingDebug: ['sass-loader'],
+        assetsSpace: 99,
+        dependentModules: true,
+        depth: true,
+        entrypoints: true,
+        moduleAssets: true,
+        moduleTrace: true,
+        providedExports: true,
+        reasons: true,
+        usedExports: true,
+        assets: true,
+        children: true,
+        groupReasonsByOrigin: true,
     },
     entry: {
-        //html: { import: '../static/index.html' },
-        bundle: ['./app/index.ts'], //{
-        /* import: [
-                './app/index.mts', 
-                            './css/style.scss',
-               /* './css/common.scss',
-                './css/editor.scss',
-                './css/buttons.scss',
-                './css/frames.scss',
-                './css/markdown.scss',
-                './css/terminal.scss',
-                './css/grid-display.scss',*/
-        // ],*/
-        //filename: 'js/bundle.js',
-        //},
-        // path.join(__dirname, 'src', 'main', 'webroot','css', 'style.scss'),
-        //html: ['./webroot/terms-no.md'],
+        bundle: ['./app/index.ts'],
+        //     fonts: [ './app/fonts.js']
     },
     output: {
         path: path.resolve(__dirname, 'dist', 'webroot'),
@@ -78,18 +87,9 @@ const config = {
         port: 7778,
         static: [
             path.resolve(__dirname, 'dist', 'webroot'),
-            {
-                directory: path.resolve(__dirname, 'static'),
-                publicPath: '/static',
-            },
-            {
-                directory: path.resolve(__dirname, '..', 'turtleduck', 'fonts'),
-                publicPath: '/static/fonts',
-            },
         ],
         hot: 'only',
         liveReload: false,
-        magicHtml: false,
         historyApiFallback: {
             rewrites: [{ from: /^\/~/, to: '/index.html' }],
             //verbose: true,
@@ -100,9 +100,11 @@ const config = {
         // (use symlink) watchFiles: ['../borb/**/*.ts', '../borb/**/*.js']
     },
     resolve: {
-        extensions: ['.ts', '.mts', '.tsx', '.js', '.mjs'],
+        extensions: ['.ts', '.mts', '.tsx', '.js', '.mjs', '.woff2'],
         symlinks: false,
         alias: {
+            fonts: path.resolve(__dirname, 'fonts'),
+            '../fonts': path.resolve(__dirname, 'fonts'),
             //          'borb$': path.resolve(__dirname, 'src/main/webroot/borb/borb'),
             //        'borb': path.resolve(__dirname, 'src/main/webroot/borb'),
             //        '../../../../borb/src/Styles.ts$': path.resolve(__dirname, '../borb/src/Styles.ts'),
@@ -115,7 +117,8 @@ const config = {
         //  }
     },
     optimization: {
-        usedExports: true,
+        usedExports: false,
+        sideEffects: false,
     },
     cache: {
         type: 'filesystem',
@@ -165,22 +168,6 @@ const config = {
                     },
                 ],
             },
-/*            {
-                test: /\.css$/,
-                type: 'asset/resource',
-                generator: {
-                    filename: '[path][name][ext]',
-                },
-                use: [
-                    process.env.NODE_ENV !== 'production'
-                        ? // embeds CSS-as-JS in a style element
-                          { loader: 'style-loader', options: { injectType: 'styleTag' } } //'style-loader'
-                        : // turns the JS code back into CSS for file output
-                          MiniCssExtractPlugin.loader,
-                    // turns CSS code into JS (to be inserted at import site),
-                    'css-loader',
-                ],
-            },*/
             {
                 test: /\.txt$/,
                 type: 'asset/source',
@@ -190,42 +177,31 @@ const config = {
                 test: /\.ne$/,
                 use: ['nearley-loader'],
             },
-            /*      {
-                test: /\.s[ac]ss$/i,
-                resourceQuery: { not: [/raw/] },
-                //type: 'asset/resource',
-                 generator: {
-                     filename: '[path][name][ext]',
-                 },
-                exclude: /node_modules/,
-                use: [
-                    process.env.NODE_ENV !== 'production'
-                    // embeds CSS-as-JS in a style element
-                       ? { loader: "style-loader", options: { injectType: "styleTag" } }//'style-loader'
-                       // turns the JS code back into CSS for file output
-                       : MiniCssExtractPlugin.loader,
-                       // turns CSS code into JS (to be inserted at import site)
-                   'css-loader',
-                    // turns SCSS code into CSS
-                    'sass-loader'
-                ],
-            },*/
+            {
+                test: path.resolve(__dirname, 'puffin', 'css', 'fonts.scss'),
+                type: 'asset/inline',
+                generator: { emit: false, binary: false, filename: 'foo.css' },
+                use: [{ loader: MiniCssExtractPlugin.loader, options: {emit: false} }, 'css-loader'],
+            },
             {
                 test: /\.s[ac]ss$/i,
                 resourceQuery: { not: [/raw/] },
                 type: 'asset/resource',
                 generator: {
                     filename: 'static/css/[name].css',
+                    binary: false,
                 },
                 exclude: /node_modules/,
                 use: [
                     // turns SCSS code into CSS
+                    //MiniCssExtractPlugin.loader,'css-loader',
                     {
                         loader: 'sass-loader',
                         options: {
-                            sourceMap: true,
-                            api: "modern",
+                            api: 'modern-compiler',
                             sassOptions: {
+                                sourceMap: true,
+                                style: 'expanded',
                                 silenceDeprecations: ['import', 'legacy-js-api', 'color-functions'],
                             },
                         },
@@ -233,12 +209,15 @@ const config = {
                 ],
             },
             {
-                test: /\.(png|jpg|gif|svg|eot|ttf|woff|woff2)$/,
-                type: 'asset',
-                /*                options: {
-                    limit: 200000,
-                    outputPath: 'static',
-                },*/
+                test: /\.(eot|ttf|woff|woff2)$/i,
+                type: 'asset/resource',
+                generator: {
+                    filename: 'static/fonts/[path][name][ext]',
+                },
+            },
+            {
+                test: /\.(png|jpg|gif|svg)$/i,
+                type: 'asset/resource',
             },
         ],
     },

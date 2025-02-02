@@ -1,6 +1,6 @@
 @font-face {
   font-family: 'Fantasque Sans Mono';
-  src: url('../fonts/fantasque/FantasqueSansMono-Bold.woff2') format('woff2'),
+  src: url(../fonts/fantasque/FantasqueSansMono-Bold.woff2) format('woff2'),
     url('../fonts/fantasque/FantasqueSansMono-Bold.woff') format('woff');
   /* Firefox >= 3.6, any other modern browser */
   font-weight: 700;
@@ -70,6 +70,9 @@
   font-style: italic;
 }
 
+body {
+    background-image: url(../fonts/fantasque/FantasqueSansMono-Bold.woff2);
+}
 //@font-face {
 //  font-family: 'SH Pinscher';
 //  src: url('../fonts/shpinscher/SHPinscher-Regular.woff') format('woff'); /* Firefox >= 3.6, any other modern browser */

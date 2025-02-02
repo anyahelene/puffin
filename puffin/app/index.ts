@@ -6,7 +6,6 @@ import { BorbButton, BorbCommand } from '../borb/Buttons';
 import { Styles } from '../borb/Styles';
 Styles.pathPrefix = 'static/';
 import grammar from '../qlang/qlang.ne';
-
 import slugify from 'slugify';
 import { html, render } from 'uhtml';
 import { TilingWM, TilingWindow } from '../borb/TilingWM';
@@ -17,6 +16,7 @@ import '../borb/css/frames.scss';
 import '../borb/css/markdown.scss';
 import '../borb/css/sheet.scss';
 import '../borb/css/terminal.scss';
+import '../css/fonts.scss';
 import '../css/style.scss';
 import { add_assignment_form, edit_assignment_form } from './assignments';
 import { CourseView } from './courses';
@@ -322,8 +322,6 @@ async function initialize() {
 
 SubSystem.waitFor('dom').then(() => queueMicrotask(initialize));
 
-//import styles from '../css/common.scss';
-//console.log(styles)
 
 if (import.meta.webpackHot) {
     console.warn('WebpackHot enabled');
