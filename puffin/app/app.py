@@ -362,8 +362,8 @@ def before_request():
             "real user:",
             session.get("real_user"),
         )
-    except:
-        pass
+    except Exception:
+        pass # ignore errors in debug code
     # print("session: ", session)
 
 
@@ -373,8 +373,8 @@ def after_request(response: Response):
         if current_user:
             print("after request", getattr(current_user, "email", "anonymous"))
             response.headers.add("X-User", getattr(current_user, "email", "anonymous"))
-    except:
-        pass
+    except Exception:
+        pass  # ignore errors in debug code
     return response
 
 
