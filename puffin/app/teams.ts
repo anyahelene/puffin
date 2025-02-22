@@ -34,7 +34,7 @@ export function add_many_teams_form() {
             lines.forEach((line, i) => {
                 try {
                     const [team_name, groupno, project_path] = line
-                        .split('\t')
+                        .split(/[\t;]/)
                         .map((s) => s.trim());
                     const group = Course.current.groupsBySlug.get(`gruppe-${groupno}`);
                     if (team_name !== '' || project_path !== '') {
@@ -228,6 +228,7 @@ export function team_table_form(form_data: Record<string, any>, redraw): Hole {
 export async function add_team_form(proj_ref = undefined) {
     const form_data: Record<string, any> = {};
     form_data.course_id = Course.current?.external_id;
+    const is_admin = Course.current_user?.is_admin;
     console.log('add_team_form:', form_data);
     const panel = team_panel();
     let editable = true;
@@ -249,7 +250,7 @@ export async function add_team_form(proj_ref = undefined) {
         }
     };
     const is_valid = () => {
-        return !!form_data['project_project'];
+        return !!form_data.name; // !!form_data['project_project'];
     };
     const redraw = () => {
         console.log('redraw team form');
@@ -261,18 +262,18 @@ export async function add_team_form(proj_ref = undefined) {
                 field: 'name',
                 required: true,
             })}
-            ${project_field(
+            ${is_admin ? project_field(
                 {
                     editable,
                     obj: form_data,
                     name: 'Team Project',
                     field: 'project',
-                    required: true,
+                    required: false,
                     on_valid_project: has_valid_project,
                     value: '',
                 },
                 redraw,
-            )}
+            ) : ''}
             <div class="form-control">
                 <button type="button" onclick=${cancel} ?disabled=${!editable}
                     >❌ Cancel Edit</button

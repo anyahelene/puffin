@@ -3,6 +3,7 @@ from .lib import *
 import re
 import random
 
+from puffin.util.apicalls import Required, ReadOnly, Optional
 
 class CanvasAssignment(CanvasCreatableObject):
     __create_path__ = "courses/{course_id}/assignments"

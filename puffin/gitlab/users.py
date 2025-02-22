@@ -30,7 +30,7 @@ class GitlabConnection:
         if app:
             base_url = base_url or app.config.get("GITLAB_BASE_URL")
             token = token or app.config.get("GITLAB_SECRET_TOKEN")
-        self.base_url = base_url
+        self.base_url = base_url or ''
         self.token = token
         self.thread_local = threading.local()
         self.thread_local.gl = None

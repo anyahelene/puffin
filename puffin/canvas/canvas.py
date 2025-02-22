@@ -1,4 +1,3 @@
-from collections import UserDict
 from flask import current_app
 from typing import Any, Iterable, Self, Annotated
 import csv
@@ -10,6 +9,7 @@ from slugify import slugify
 
 logger = logging.getLogger(__name__)
 from puffin.canvas.assignments import CanvasAssignment
+from puffin.util.apicalls import Required, ReadOnly, Optional
 
 from .lib import *
 
@@ -139,6 +139,13 @@ class CanvasCourse(CanvasObject):
             pass
 
         return users
+
+    def get_groups(self, category:int|None = None):
+        if category != None:
+            result = self.conn.get_paginated(f"group_categories/{category}/groups")
+        else:
+            result = self.conn.get_paginated(f"courses/{self.id}/groups")
+        return [CanvasGroup(self.conn, data) for data in result]
 
     def get_group_categories(self):
         result = self.conn.get_paginated(f"courses/{self.id}/group_categories")

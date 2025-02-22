@@ -37,7 +37,7 @@ export function add_to_table(table: string | ColumnSpec[], entry_name: string, e
 //tables['with_member_list'] = [{ name: 'members', type: 'member[]' }];
 //tables['with_group_list'] = [{ name: 'groups', type: 'group[]' }];
 tables['FullUser'].push({ name: 'team', type: 'group[]', filter: '' });
-tables['FullUser'].push({ name: 'section', type: 'group[]', filter: '' });
+tables['FullUser'].push({ name: 'group', type: 'group[]', filter: '' });
 //tables['FullUser'].push({ name: 'groups', type: 'group[]', filter: '' });
 modify_table('FullUser', ['firstname', 'lastname'], (entry) => {
     entry.mapping = (field, obj, spec) => (field ? html.node`${obj.as_link(field)}` : '');
@@ -123,7 +123,7 @@ export async function request(
     method: string = 'GET',
     params: Record<string, object | boolean | number | string> = undefined,
     use_url_params = false,
-    allow_error = false,
+    allow_error: boolean|'flash' = false,
 ): Promise<any> {
     const has_token = !!csrf_token;
     const tok = csrf_token || (await updateToken());
@@ -137,13 +137,25 @@ export async function request(
 
         if (blob.type === 'application/json') {
             return JSON.parse(await blob.text());
+        } else if (!res.ok && blob.type.startsWith('text/html')) {
+            const data = await blob.text()
+            const message = new DOMParser().parseFromString(data, 'text/html');
+            const result = {
+                status: 'error',
+                html_message: message,
+                data,
+                message: message.querySelector('title')?.innerText,
+                status_code: res.status,
+            };
+            console.error('html error message', result);
+            return result;
         } else {
             const result = {
                 status: res.ok ? 'ok' : 'error',
                 data: await blob.text(),
                 status_code: res.status,
             };
-            console.error('hmm... should this be JSON, maybe?', result);
+            console.error('hmm... should this be JSON, maybe?', blob.type, result);
             return result;
         }
     };
@@ -175,10 +187,15 @@ export async function request(
             // TODO: use popup window
             window.location.replace(result.login_url);
         } else if (!allow_error) {
-            show_flash(result.message, 'error');
+            show_flash(result, 'error');
             console.error('Request failed', result, '\nrequest:', req, '\nresponse:', res);
             throw new RequestError(res, result.message || 'Unknown error', result);
+        } else if (allow_error === 'flash') {
+            show_flash(result, 'error');
+            console.error('Request failed', result, '\nrequest:', req, '\nresponse:', res);
         }
+    } else if(!result.status) {
+        result.status = 'ok';
     }
     return result;
 }
@@ -583,33 +600,30 @@ export function readable_size(n: number) {
     else if (n < 1024 * 1024 * 1024) return `${Math.round(n / 1024 / 1024)} MiB`;
 }
 
-export function instantiate(pattern: string, objects: { course: Course; asgn: Assignment }) {
+export function instantiate(pattern: string, objects: { course?: Course; asgn?: Assignment }) {
     const re = new RegExp(/\$([A-Z]+)(?:_([A-Z_]+))?|(\\_)|([^$]+)/, 'y');
 
-    let result : (string|Hole)[] = [];
+    let result: (string | Hole)[] = [];
     let mo = re.exec(pattern);
     console.log(re, mo);
     while (mo) {
         console.log(re, mo);
         if (mo[1]) {
             let obj = objects[mo[1].toLowerCase()];
-            if(obj && mo[2]) {
+            if (obj && mo[2]) {
                 console.log('obj:', obj);
                 obj = obj[mo[2].toLowerCase()];
             }
-            if(obj !== undefined)
-                result.push(`${obj}`);
-            else if(mo[2] !== undefined)
-                result.push(`$${mo[1]}_${mo[2]}`)
-            else
-            result.push(`$${mo[1]}`)
+            if (obj !== undefined) result.push(`${obj}`);
+            else if (mo[2] !== undefined) result.push(`$${mo[1]}_${mo[2]}`);
+            else result.push(`$${mo[1]}`);
         } else if (mo[3]) {
-            result.push('_')
+            result.push('_');
         } else if (mo[4]) {
             result.push(mo[4]);
         }
         mo = re.exec(pattern);
     }
     console.log(result);
-    return result;
+    return result.join('');
 }

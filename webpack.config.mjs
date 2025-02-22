@@ -30,6 +30,7 @@ const config = {
         new MiniCssExtractPlugin({ filename: '[name].css' }),
         new FaviconsWebpackPlugin({
             logo: '../static/img/puffin_red.svg',
+            //logo: '../static/img/puffin-cube.png',
             outputPath: 'static/img',
             favicons: {
                 icons: {
@@ -60,7 +61,7 @@ const config = {
     ],
     stats: {
         loggingDebug: ['sass-loader'],
-        assetsSpace: 99,
+    /*    assetsSpace: 99,
         dependentModules: true,
         depth: true,
         entrypoints: true,
@@ -71,7 +72,7 @@ const config = {
         usedExports: true,
         assets: true,
         children: true,
-        groupReasonsByOrigin: true,
+        groupReasonsByOrigin: true,*/
     },
     entry: {
         bundle: ['./app/index.ts'],

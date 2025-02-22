@@ -6,6 +6,7 @@ import {
     request,
     to_table,
     puffin,
+    instantiate,
 } from './puffin';
 import { Course } from './model';
 import { BorbPanelBuilder } from '../borb/Frames';
@@ -130,13 +131,17 @@ class _courses {
         const check_gitlab = (f: gitlab_getter) => (data: any, value?: any) => {
             return busy_event_handler(
                 async (ev: MouseEvent) => {
-                    if (data.ref?.current?.value || value) {
-                        const g = await f(undefined, data.ref?.current?.value || value);
+                    let v = data.ref?.current?.value || value;
+                    if (v) {
+                        console.log('before', v);
+                        v = instantiate(v, {course})
+                        console.log('after', v);
+                        const g = await f(undefined, v);
                         if (g) {
                             data.ref.current.value =
                                 course[data.field] =
                                 course.json_data[data.field.replace(/^_/, '')] =
-                                    g.full_path;
+                                    g.full_path || g.path_with_namespace;
                         } else {
                             console.warn('not found', g);
                         }
@@ -210,7 +215,7 @@ class _courses {
                         pattern: `^${GITLAB_PATH_RE}(/${GITLAB_PATH_RE})*$`,
                         name: 'Gitlab wiki',
                         field: '_gitlab_wiki',
-                        recommended: '$GITLAB_GROUP/' + course.slug,
+                        recommended: '$COURSE_CODE/$COURSE_TERM/' + course.slug,
                         link_prefix: course.has_valid_gitlab_path() ? GITLAB_PREFIX : undefined,
                         button_make_onclick: check_gitlab_project,
                         button_class: course.has_valid_gitlab_path() ? 'check-ok' : 'check-unknown',
@@ -222,7 +227,7 @@ class _courses {
                         pattern: `^${GITLAB_PATH_RE}(/${GITLAB_PATH_RE})*$`,
                         name: 'Fork assignments to',
                         field: '_gitlab_student_path',
-                        recommended: '$GITLAB_GROUP/$ASGN_SHORTNAME/$GITLAB_USERNAME\\_$ASGN_SLUG',
+                        recommended: '$COURSE_CODE/$COURSE_TERM/$ASGN_SHORTNAME/$GITLAB_USERNAME\\_$ASGN_SLUG',
                         link_prefix: course.has_valid_gitlab_student_path()
                             ? GITLAB_PREFIX
                             : undefined,
@@ -282,7 +287,7 @@ class _courses {
         );
     }
 
-    async add_course(canvas_courses?: Record<string, any>[], canvas_id?: number) {
+    async add_course(canvas_courses?: Record<string, any>[], canvas_id?: number, panel?: HTMLElement) {
         if (!canvas_courses) {
             const panel = this.get_course_panel(null);
             // render(panel, html`Loading course list from Canvas...`);
@@ -306,24 +311,25 @@ class _courses {
                     </thead>
                     <tbody>
                         ${canvas_courses.map(
-                            (course) => html`<tr
-                                data-id=${course.canvas_id}
-                                class=${course.workflow_state == 'finished' ? 'disabled' : ''}
-                            >
-                                <td>${course.term}</td>
-                                <td>${course.slug}</td>
-                                <td>${course.name}</td>
-                                <td>${course.canvas_id}</td>
-                                <td>${course.workflow_state}</td>
-                                <td
-                                    ><button
-                                        type="button"
-                                        onclick=${() =>
-                                            this.add_course(canvas_courses, course.canvas_id)}
-                                        >Add course</button
-                                    ></td
+                            (course) =>
+                                html`<tr
+                                    data-id=${course.canvas_id}
+                                    class=${course.workflow_state == 'finished' ? 'disabled' : ''}
                                 >
-                            </tr>`,
+                                    <td>${course.term}</td>
+                                    <td>${course.slug}</td>
+                                    <td>${course.name}</td>
+                                    <td>${course.canvas_id}</td>
+                                    <td>${course.workflow_state}</td>
+                                    <td
+                                        ><button
+                                            type="button"
+                                            onclick=${() =>
+                                                this.add_course(canvas_courses, course.canvas_id, panel)}
+                                            >Add course</button
+                                        ></td
+                                    >
+                                </tr>`,
                         )}
                     </tbody>
                 </table>`,
@@ -333,11 +339,14 @@ class _courses {
             const course = canvas_courses.find((course) => course.id === canvas_id);
             console.log('add_course payload:', course);
             if (course) {
-                const result = await request('courses/', 'POST', course);
+                const result = await request('courses/', 'POST', course, false, 'flash');
                 console.log('add_course result:', result);
-                await Course.updateCourses();
-                await Course.setActiveCourse(canvas_id);
-                CourseView.set_course_view(true);
+                if (result.status === 'ok') {
+                    await Course.updateCourses();
+                    await Course.setActiveCourse(canvas_id);
+                    CourseView.set_course_view(true);
+                }
+                panel.remove();
             } else {
                 // ERROR
             }

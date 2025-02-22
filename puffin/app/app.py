@@ -8,6 +8,7 @@ import sys
 from puffin.db import database
 from puffin.gitlab.users import GitlabConnection
 from puffin.canvas.canvas import CanvasConnection
+from puffin.maint.sonarqube import SonarConnection
 from puffin.util.errors import ErrorResponse
 from puffin.app import view_projects
 from os.path import dirname, abspath, join, isabs
@@ -167,6 +168,7 @@ def create_app(config_only=False):
     CSRFProtect(app)
     CanvasConnection(app)
     GitlabConnection(app)
+    SonarConnection(app)
 
     database.configure(app)
     from . import login, view_courses, view_users
@@ -244,7 +246,7 @@ def shell_setup():
     )
     from puffin.db.model_views import CourseUser, UserAccount, FullUser
     from puffin.canvas import canvas, assignments, lib as canvas_lib
-    from puffin.maint import submissions
+    from puffin.maint import submissions, sonarqube, teams
 
     canvas.__dict__["connection"] = current_app.extensions["puffin_canvas_connection"]
     from importlib import reload
@@ -253,10 +255,14 @@ def shell_setup():
     course = current_app.extensions["puffin_canvas_connection"].course(48837, stub=True)
     cc = current_app.extensions["puffin_canvas_connection"]
     gc = current_app.extensions["puffin_gitlab_connection"]
+    sqc = current_app.extensions["puffin_sonarqube_connection"]
     gl = gc.gl
     __scope__ = locals().copy()
 
     def reload_all():
+        CanvasConnection(app)
+        GitlabConnection(app)
+        SonarConnection(app)
         for m in list(sys.modules.values()):
             if (
                 type(m) == type(puffin)
@@ -409,6 +415,7 @@ def handle_sql_exception(e: SQLAlchemyError):
     response.data = json.dumps(error)
     response.status_code = error["status_code"]
     response.content_type = "application/json"
+    logger.error(f"sql error: ", e)
     return response
 
 

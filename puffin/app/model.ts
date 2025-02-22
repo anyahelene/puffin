@@ -132,13 +132,14 @@ export class Group extends _Group {
                 ? html`<a href="${gitlab_url(this.json_data.project_path)}" target="_blank">
                       ${this.json_data.project_name} – [${this.json_data.project_path}]</a
                   >`
-                : this.json_data.project_name;
+                : this.json_data.project_name || '(none)';
             const filesPath = `courses/${this.course.external_id}/teams/${this.id}/files/`;
             const share = this.json_data.share || {};
             console.log('redraw', this.json_data.share_jar, JSON.stringify(this.json_data));
             const has_members = this.students.length > 0;
             let sharing = [];
-            if (this.kind === 'team') {
+            const SHARING_ENABLED = false; // TODO
+            if (this.kind === 'team' && SHARING_ENABLED) {
                 sharing.push(
                     html`<b>Readme:</b> ${share.readme_file &&
                         (isMember || share.share_src || share.share_jar)
@@ -205,6 +206,12 @@ export class Group extends _Group {
                     );
                 });
             }
+            const sync_group = async () => {
+                const result = await request(`courses/${this.course.external_id}/groups/${this.id}/sync`, 'POST');
+                console.log('sync_group', result);
+                await Course.current.updateMemberships();
+                redraw();
+            }
             render(
                 panel,
                 html`
@@ -219,7 +226,7 @@ export class Group extends _Group {
                     ${has_members
                         ? html` <div><borb-sheet>${table1}</borb-sheet></div>
                               ${this.join_source
-                                  ? html`<p>(members imported from ${this.join_source})</p>`
+                                  ? html`<p>(members imported from ${this.join_source} <button type="button" onclick=${sync_group}>Sync now!</button>)</p>`
                                   : ''}
                               <p><b>Emails:</b> ${user_emails(this.students)}</p>
                               <div><borb-sheet>${children_table}</borb-sheet></div>
@@ -428,6 +435,12 @@ export class User extends _FullUser {
     get section() {
         return this.groups.filter((g) => g.kind === 'section');
     }
+    get group() {
+        return this.groups.filter(
+            (g) => g.kind === 'group' && this.memberships.get(g.id).role === this.role,
+        );
+    }
+
     as_link(link_text: string = undefined) {
         link_text = link_text ? link_text : `${this.firstname} ${this.lastname}`;
         return html`<a

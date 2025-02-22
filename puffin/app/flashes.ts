@@ -58,6 +58,7 @@ export function show_flash(content: string | Record<string, any> | Hole, categor
     if (!flashes)
         return;
     let s = content;
+    console.log("show_flash", content);
     if (typeof content !== 'string' && !(content instanceof Hole)) {
         s = content.message;
         if (Array.isArray(content.args) && content.args.length > 0) {

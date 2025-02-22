@@ -154,7 +154,7 @@ def define_gitlab_account(session: sa.orm.Session, user: User, username: str, us
     return git_user
 
 
-def update_groups_from_uib(session: sa.orm.Session, data, course, changes=None, sync_time: datetime|None = None):
+def update_sections_from_uib(session: sa.orm.Session, data, course, changes=None, sync_time: datetime|None = None):
     """Create or update course groups from Mitt UiB data."""
     if data.get('sis_section_id') == None:
         return None
@@ -210,15 +210,19 @@ def update_groups_from_uib(session: sa.orm.Session, data, course, changes=None, 
     session.commit()
 
 
-def check_group_membership(db: sa.orm.Session, course: Course, group: Group, user: User, changes=None, students_only=True, join=JoinModel.AUTO, sync_time: datetime|None = None):
+def check_group_membership(db: sa.orm.Session, course: Course, group: Group, user: User, changes=None, students_only=True, join=None, sync_time: datetime|None = None):
     en = user.enrollment(course)
     if en:
         if students_only and en.role != 'student':
             logger.info(
                 f'check_group_membership(%s): skipping non-sudent: %s', group.slug, user.lastname)
         else:
+            if join == None:
+                join = group.join_model
             membership, created = get_or_define(db, Membership, {'group_id': group.id, 'user_id': user.id},
                                                 {'role': en.role, 'join_model': join})
+            if membership.join_model == JoinModel.REMOVED:
+                membership.join_model = join
             if membership.role != en.role and membership.join_model == JoinModel.AUTO:
                 membership.role = en.role
             # db.add(membership)
@@ -237,7 +241,7 @@ def check_group_membership(db: sa.orm.Session, course: Course, group: Group, use
 def check_unique(db: sa.orm.Session, cls : Type[database.Base], message:str, *clauses: tuple[str,sa.ColumnExpressionArgument]):
     not_unique = []
     for (field, column_expr) in clauses:
-        if db.execute(sa.select(cls).where(column_expr)).one_or_none():
+        if db.execute(sa.select(cls).where(column_expr)).first() != None:
             not_unique.append(field)
     if len(not_unique) > 0:
         logger.info(f'check_unique found: %s', not_unique)

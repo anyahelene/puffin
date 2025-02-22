@@ -9,7 +9,7 @@
     <link rel="stylesheet" href="{{ static('style.css') }}" />
     <link rel="stylesheet" href="{{ static('sheet.css') }}" />
     <%= htmlWebpackPlugin.tags.headTags %>
-    <link rel="icon" href="{{ static('puffin_red.svg') }}" />
+        <link rel="icon" href="{{ static('puffin_red.svg') }}" />
 </head>
 
 
@@ -19,7 +19,9 @@
         {% if messages %}
         <ul id="flashes" class="flashes right">
             {% for category, message in messages %}
-            <li class="flash {{ category }} new"><div class="flash-inner">{{ message }}</div></li>
+            <li class="flash {{ category }} new">
+                <div class="flash-inner">{{ message }}</div>
+            </li>
             {% endfor %}
         </ul>
         {% endif %}
@@ -40,6 +42,9 @@
             <div class="login-page">
                 {% if allow_gitlab %}
                 <form class="login-form" action="gitlab" method="get">
+                    {% if next_page %}
+                    <input name="next_page" type="hidden" value="{{ next_page }}"></input>
+                    {% endif %}
                     <button type="submit">Log in with git.app.uib.no</button>
                 </form>
                 {% endif %}

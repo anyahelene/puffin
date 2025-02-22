@@ -53,6 +53,7 @@ class JoinModel(enum.Enum):
     AUTO = "Auto – users are automatically added to this group"
     CLOSED = "Closed – group owner must add users"
     REMOVED = "Removed – user was manually removed from group"
+    MANUAL = "Manual – user was manually added to group"
 
 
 class AssignmentModel(enum.Enum):
@@ -163,7 +164,8 @@ class Course(Base):
             'locale': 'locale',
             'sis_course_id': 'str',
             'time_zone': 'timezone',
-            'canvas_team_category' : 'int'
+            'canvas_team_category' : 'int',
+            'canvas_group_category' : 'int'
         }
     }
 
@@ -300,6 +302,7 @@ class User(Base):
                     and (kind == None or m.group.kind == kind) and m.join_model != JoinModel.REMOVED:
                 ms.append(m)
         return ms
+
 
     def is_member(self, group:Group|int) -> bool:
         """Returns true if user is a member of the group. Group can be a group object or a group_id."""

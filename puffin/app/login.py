@@ -1,12 +1,12 @@
 from datetime import datetime
 from http import HTTPStatus
 from typing import Any
-from flask import Blueprint, Config, Flask, abort, current_app, flash, g, jsonify, redirect, render_template, request, session, url_for
+from flask import Blueprint, Config, Flask, abort, current_app, flash, g, jsonify, make_response, redirect, render_template, request, session, url_for
 from flask_login import LoginManager, current_user, login_required, login_user, logout_user
 from flask_wtf import CSRFProtect, FlaskForm
 from wtforms import StringField, PasswordField, SubmitField
 from puffin.util.errors import ErrorResponse
-from puffin.db.model_tables import User,Account
+from puffin.db.model_tables import Course, Enrollment, Group, JoinModel, Membership, User,Account
 from puffin.db.database import db_session
 from sqlalchemy import select
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -45,6 +45,8 @@ def init(app:Flask, parent:Blueprint):
 @bp.route('/', methods=['GET', 'POST'])
 def login():
     allow_gitlab = gitlab_oauth != None
+    next_page = request.args.get('next_page')
+    _logger.info("/login[%s]: next_page=%s", g.log_ref, next_page)
     if app_config.get('LOGIN_ALLOW_PASSWORD', True):
         form = LoginForm()
         if form.is_submitted():
@@ -72,16 +74,17 @@ def login():
             _logger.error("/login/login error: %s", error)
             flash(error + f'(ref: {g.log_ref})')
 
-        return render_template('./login.html', form=form, title=f"Login – {app_config.get('SITE_TITLE', '')}", allow_password=True, allow_gitlab=allow_gitlab)
+        return render_template('./login.html', form=form, title=f"Login – {app_config.get('SITE_TITLE', '')}", allow_password=True, allow_gitlab=allow_gitlab, next_page=next_page)
     else:
-        return render_template('./login.html', title=f"Login – {app_config.get('SITE_TITLE', '')}", allow_password=False, allow_gitlab=allow_gitlab)
+        return render_template('./login.html', title=f"Login – {app_config.get('SITE_TITLE', '')}", allow_password=False, allow_gitlab=allow_gitlab, next_page=next_page)
 
 
 
 @bp.route('/gitlab')
 def login_gitlab():
+    session['next_page'] = request.args.get('next_page')
     redirect_uri = url_for('app.login.authorize_gitlab', _external=True)
-    _logger.info("/login/gitlab[%s]: redirect_uri=%s", g.log_ref, redirect_uri)
+    _logger.info("/login/gitlab[%s]: redirect_uri=%s, next_page=%s", g.log_ref, redirect_uri, request.args.get('next_page'))
     r= oauth.gitlab.authorize_redirect(redirect_uri) # type: ignore
     #for k,v in gitlab_oauth.__dict__.items():
     #    print(k, v)
@@ -146,6 +149,9 @@ def authorize_gitlab():
     _logger.info('/login/authorize_gitlab[%s]: token %s', g.log_ref, token)
     userinfo = token['userinfo']
     _logger.info('/login/authorize_gitlab[%s]: OpenID Connect callback userinfo: %s', g.log_ref,  userinfo)
+    next_page = session.get('next_page')
+    del session['next_page']
+    
     # do something with the token and profile
     userid = int(userinfo['sub'])
     uacc = db_session.execute(select(User,Account).where(User.id==Account.user_id,Account.external_id==userid, Account.provider_name=='gitlab')).one_or_none()
@@ -154,11 +160,17 @@ def authorize_gitlab():
     #resp.raise_for_status()
     #profile = resp.json()
     _logger.info('/login/authorize_gitlab[%s]: OpenID Connect login - account %s', g.log_ref, uacc)
+    redirect_url = url_for('app.index_html')
+    if next_page:
+        _logger.info('/login/authorize_gitlab[%s]: next_page=%s', g.log_ref, next_page)
+        if next_page == '/sonarqube':
+            redirect_url = '/sonarqube'
+
     if uacc: # user exists, connected to this GitLab account
         acc : Account = uacc.Account
         user : User = uacc.User
         if not user.is_expired:
-            _logger.info('/login/authorize_gitlab[%s]: logged in successfully, redirecting to %s', g.log_ref, url_for('app.index_html'))
+            _logger.info('/login/authorize_gitlab[%s]: logged in successfully, redirecting to %s', g.log_ref, redirect_url)
             #session.clear()
             login_user(user)
             session['real_user'] = user.id
@@ -167,7 +179,7 @@ def authorize_gitlab():
             acc.email_verified = userinfo.get('email_verified', False)
             db_session.commit()
             flash('Logged in successfully')
-            return redirect(url_for('app.index_html'))
+            return redirect(redirect_url)
         else:
             error = "Account expired – contact administrators"
             _logger.error('/login/authorize_gitlab[%s]: Error: %s', g.log_ref, error)
@@ -259,3 +271,43 @@ def request_loader(request):
     # Flask will send a "403 Forbidden" response, so think of
     # "Unauthorized" as "Unauthenticated" and "Forbidden" as "Unauthorized")
     abort(HTTPStatus.UNAUTHORIZED)
+
+@bp.route("/auth/<name>/")
+@bp.route("/auth/<name>/<path:path>")
+def auth_helper(name: str, path : str = ''):
+    if not current_user or not current_user.is_authenticated:
+        abort(HTTPStatus.UNAUTHORIZED)
+
+    if name == 'sonarqube':
+        user : User = current_user # type: ignore
+        account : Account|None = user.account('gitlab')
+        if account == None:
+            abort(HTTPStatus.FORBIDDEN)
+
+        response = make_response()
+        response.headers.add('X-Forwarded-Login', account.username)
+        response.headers.add('X-Forwarded-Name', user.firstname + ' ' + user.lastname)
+        response.headers.add('X-Forwarded-Email', user.email)
+        response.headers.add('Cache-Control', 'private, max-age: 300, must-revalidate')
+        groups = []
+        for (course_id, slug, json_data, role) in db_session.execute(select(Course.id, Course.slug, Course.json_data, Enrollment.role).where(Course.id == Enrollment.course_id, Enrollment.user_id == user.id, Enrollment.join_model != JoinModel.REMOVED)).all():
+            gitlab_path = json_data.get('gitlab_path')
+            print(course_id, slug, json_data, role, gitlab_path)
+            if not gitlab_path or not role:
+                continue
+            groups.append(f'{gitlab_path}/{role}s')
+            groups.append(f'{slug}_{role}s')
+            if role == 'teacher' or role == 'ta':
+                groups.append(f'{gitlab_path}/proj')
+
+            for team in db_session.execute(select(Group).where(Group.id == Membership.group_id, Group.kind == 'team', Group.course_id == course_id, Membership.user_id == user.id, Membership.join_model != JoinModel.REMOVED)).scalars().all():
+                proj = team.json_data.get('project_path')
+                if proj and proj.startswith(gitlab_path):
+                    groups.append(proj)
+        if len(groups) == 0:
+            abort(HTTPStatus.FORBIDDEN)
+        response.headers.add('X-Forwarded-Groups', ','.join(groups))
+        print(response.headers)
+        return response
+    else:
+        abort(HTTPStatus.NOT_FOUND)
