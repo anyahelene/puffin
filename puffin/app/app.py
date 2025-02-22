@@ -355,20 +355,26 @@ def before_request():
         int(datetime.timestamp(datetime.now()) * 1000) & 0x7FFFFFFF
     )
     # print("request.args: ", request.args)
-    print(
-        "current_user: ",
-        getattr(current_user, "email", "anonymous"),
-        "real user:",
-        session.get("real_user"),
-    )
+    try:
+        print(
+            "current_user: ",
+            getattr(current_user, "email", "anonymous"),
+            "real user:",
+            session.get("real_user"),
+        )
+    except:
+        pass
     # print("session: ", session)
 
 
 @app.after_request
 def after_request(response: Response):
-    if current_user:
-        print("after request", getattr(current_user, "email", "anonymous"))
-        response.headers.add("X-User", getattr(current_user, "email", "anonymous"))
+    try:
+        if current_user:
+            print("after request", getattr(current_user, "email", "anonymous"))
+            response.headers.add("X-User", getattr(current_user, "email", "anonymous"))
+    except:
+        pass
     return response
 
 

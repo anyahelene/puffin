@@ -256,7 +256,8 @@ def request_loader(request):
         # and authenticates a user, so no username is provided (unless
         # you encode it in the token – see JWT (JSON Web Token), which
         # encodes credentials and (possibly) authorization info)
-        _logger.error("/login/request_loader: Bearer auth not supported: %s", g.log_ref, auth_params)
+        _logger.warning("/login/request_loader: Bearer auth not supported: %s %s", g.log_ref, auth_params)
+        #return
         raise ErrorResponse('Not supported', 404)
 
     # For other authentication schemes, see
@@ -277,6 +278,7 @@ def request_loader(request):
 def auth_helper(name: str, path : str = ''):
     if not current_user or not current_user.is_authenticated:
         abort(HTTPStatus.UNAUTHORIZED)
+
 
     if name == 'sonarqube':
         user : User = current_user # type: ignore
@@ -307,7 +309,7 @@ def auth_helper(name: str, path : str = ''):
         if len(groups) == 0:
             abort(HTTPStatus.FORBIDDEN)
         response.headers.add('X-Forwarded-Groups', ','.join(groups))
-        print(response.headers)
+        print(request.headers, response.headers)
         return response
     else:
         abort(HTTPStatus.NOT_FOUND)
