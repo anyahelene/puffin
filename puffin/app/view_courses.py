@@ -1380,7 +1380,7 @@ def course_groups_sync_one(course_spec, group_spec):
 
     def gitlab_sync(project: str, students_only=True):
         gc: GitlabConnection = current_app.extensions["puffin_gitlab_connection"]
-        (members, unmapped) = gc.project_members_incl_unmapped(db, project)
+        (members, unmapped) = gc.project_members_incl_unmapped(db, project, indirect=False)
         logger.info("gitlab_sync(%s,%s)", project, members)
         # TODO: auto-remove members when they're removed from project
         for m in members:

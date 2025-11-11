@@ -33,6 +33,7 @@ COPY --chmod=755 <<EOF $HOME/runit.sh
     LOG_FORMAT='%({x-real-ip}i)s %(l)s %({x-user}o)s %(t)s "%(r)s" %(s)s %(b)s "%(f)s" "%(a)s"'
     cd "$INSTALL_DIR" 
     ls -l /run /run/puffin
+    export TRUST_X_REAL_IP=True
     exec gunicorn \$BIND \$LOGGING --access-logformat="\$LOG_FORMAT" puffin.app:app
 EOF
 COPY <<EOF $HOME/.bashrc

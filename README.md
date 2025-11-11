@@ -109,3 +109,16 @@ python -m venv --upgrade .venv
 teams = puffin.Course.current.groups.filter(g => g.kind === 'team')
 teams.map(team => team.members.filter(g => g.role == 'student').map(u =>  puffin.Course.current.usersById[u.user_id]).sort((u1,u2) => u1.email.localeCompare(u2.email)).map(u => team.slug + "\t" +u.email).join('\n')).join('\n')
 ```
+
+# Team list to CSV
+
+```javascript
+console.log('team_slug,team_name,project_path,user_list,oblig1_pts,oblig2_pts,oblig3_pts,oblig4_pts,final_pts\n' + puffin.Course.current.groups.filter(g => g.kind === 'team').map(t => `${t.slug},${t.name},${t.json_data.project_path},${t.members.map(m => m.username).join(':')}`).join('\n'))
+```
+
+# Git clones
+
+```javascript
+console.log(puffin.Course.current.groups.filter(g => g.kind === 'team').map(t => `git clone git@git.app.uib.no:${t.json_data.project.path}.git`).join('\n'))
+console.log(puffin.Course.current.groups.filter(g => g.kind === 'team').map(t => `git clone git@git.app.uib.no:${t.json_data.project.path}.wiki.git`).join('\n'))
+```

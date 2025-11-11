@@ -14,8 +14,10 @@ from puffin.db.model_tables import LastSync, User as PuffinUser, Account
 from puffin.db.model_util import define_gitlab_account
 import logging
 import threading
+import re
 
 logger = logging.getLogger(__name__)
+bot_user_re = re.compile(r'(project|group)_[0-9]+_bot_[a-zA-Z0-9]+')
 
 
 class GitlabConnection:  
@@ -49,6 +51,7 @@ class GitlabConnection:
     ) -> list[PuffinUser]:
         return self.project_members_incl_unmapped(session, project, indirect)[0]
     
+
     def project_members_incl_unmapped(
         self,
         session: sa.orm.Session,
@@ -61,7 +64,7 @@ class GitlabConnection:
         result = [(self.map_gitlab_user(session, u), u) for u in members]
         return (
             [pu for (pu, gu) in result if pu],
-            [gu.username for (pu, gu) in result if not pu],
+            [gu.username for (pu, gu) in result if not pu and not bot_user_re.match(gu.username)],
         )
 
     def map_gitlab_user(self, session: sa.orm.Session, user: GitlabUser) -> PuffinUser:
@@ -119,7 +122,14 @@ class GitlabConnection:
         gitusername: str = None, # type:ignore
     ) -> Account:
         name = f"{user.lastname}, {user.firstname}"
-        (first_firstname, *more_firstnames) = user.firstname.split()
+        def fold_chars(s):
+            # æ can be either a or e :(
+            s = s.replace('æ','a').replace('Å','A')
+            s = s.replace('ø','o').replace('Ø','O')
+            s = s.replace('å','a').replace('Å','A')
+            return s
+
+        (first_firstname, *more_firstnames) = fold_chars(user.firstname).split()
         acc = user.account("gitlab")
         gituser: GitlabUser = None # type:ignore
         if acc == None:
@@ -137,7 +147,7 @@ class GitlabConnection:
                 if len(more_users) == 1:
                     gituser = more_users[0] # type:ignore
                 else:
-                    username = f"{first_firstname}.{user.lastname}"
+                    username = f"{first_firstname}.{fold_chars(user.lastname)}"
                     logger.debug("Searching with username=%s: %s", username, users)
                     more_users = self.gl.users.list(username=username)
                     if len(more_users) == 1:

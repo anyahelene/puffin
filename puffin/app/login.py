@@ -36,9 +36,11 @@ def init(app:Flask, parent:Blueprint):
     oauth.init_app(app)
     global gitlab_oauth, app_config
     app_config = app.config
+    _logger.debug('registering gitlab')
     gitlab_oauth = oauth.register('gitlab',
                                   server_metadata_url=app.config['GITLAB_BASE_URL'] + '.well-known/openid-configuration',
                                   client_kwargs={'scope':'openid profile email'})
+    _logger.debug('registering gitlab done')
     #_logger.debug("/login init: %s\n\t%s", oauth._clients, gitlab_oauth.__dict__)
 
 
@@ -313,3 +315,5 @@ def auth_helper(name: str, path : str = ''):
         return response
     else:
         abort(HTTPStatus.NOT_FOUND)
+
+
